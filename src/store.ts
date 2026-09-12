@@ -49,7 +49,7 @@ export const ORDER_STATUS_NAMES: Record<OrderStatus, string> = {
   "✅ Выполнен": "Выполнен",
   "❌ Отменён": "Отменён",
 };
-export interface Order { id: string; userId: string; createdAt: number; lines: OrderLine[]; totalAmount: number; currency: string; customer: CustomerData; delivery_method: DeliveryMethod; payment_method: PaymentMethod; status: OrderStatus; appliedPromoCode?: string; appliedDiscountPercent?: number; discountAmount?: number; finalTotal: number; }
+export interface Order { id: string; userId: string; createdAt: number; lines: OrderLine[]; itemsSubtotal: number; totalAmount: number; currency: string; customer: CustomerData; delivery_method: DeliveryMethod; payment_method: PaymentMethod; status: OrderStatus; appliedPromoCodeId?: string; appliedPromoCode?: string; appliedDiscountPercent?: number; discountAmount?: number; finalTotal: number; }
 export interface PromoCode { id: string; code: string; discountPercent: number; active: boolean; createdAt: number; updatedAt: number; createdByAdminId?: string; }
 function normalizeOrderStatus(status: unknown): OrderStatus {
   if (ORDER_STATUSES.includes(status as OrderStatus)) return status as OrderStatus;
@@ -57,7 +57,7 @@ function normalizeOrderStatus(status: unknown): OrderStatus {
   if (status === "cancelled") return "❌ Отменён";
   return "🆕 Новый";
 }
-export interface CheckoutDraft { name?: string; phone?: string; city?: string; address?: string; delivery_method?: DeliveryMethod; payment_method?: PaymentMethod; promoCode?: string; appliedDiscountPercent?: number; discountAmount?: number; finalTotal?: number; updatedAt: number; }
+export interface CheckoutDraft { name?: string; phone?: string; city?: string; address?: string; delivery_method?: DeliveryMethod; payment_method?: PaymentMethod; promoCode?: string; appliedPromoCodeId?: string; itemsSubtotal?: number; appliedDiscountPercent?: number; discountAmount?: number; finalTotal?: number; updatedAt: number; }
 export interface Alert { id: string; itemId: string; type: "threshold" | "percent"; price?: number; direction?: "above" | "below"; percent?: number; window?: string; baseline?: number; createdAt: number; lastTriggered?: number; cooldownHours: number; enabled: boolean; }
 export interface Queued { id: string; itemId: string; ticker: string; detectedAt: number; note: string; }
 export interface State { version: 1; users: Record<string, Profile>; items: Record<string, Item[]>; alerts: Record<string, Alert[]>; queued: Record<string, Queued[]>; catalog: CatalogProduct[]; categories: CatalogCategory[]; carts: Record<string, CartLine[]>; orders: Record<string, Order[]>; promoCodes: PromoCode[]; checkoutDrafts: Record<string, CheckoutDraft>; metrics: { triggers: Record<string, number>; errors: number }; config: { cooldown: number; hysteresis: number; percentWindow: string; topN: number }; }
@@ -159,10 +159,10 @@ export async function addCatalogCategory(name: string) {
     return category;
   });
 }
-export async function addToCart(ctx: Ctx, productId: string, quantity = 1) { return transaction((s) => { const product = s.catalog.find((entry) => entry.id === productId); if (!product || !Number.isInteger(quantity) || quantity < 1 || product.availability !== "in_stock") return false; const lines = s.carts[userId(ctx)] ?? (s.carts[userId(ctx)] = []); const line = lines.find((entry) => entry.productId === productId); if (line) { line.quantity += quantity; line.unitPrice = line.unitPrice ?? product.price; line.catalogUpdatedAt = line.catalogUpdatedAt ?? product.updatedAt; } else lines.push({ productId, quantity, unitPrice: product.price, catalogUpdatedAt: product.updatedAt }); return true; }); }
-export async function changeCartQuantity(ctx: Ctx, productId: string, delta: number) { return transaction((s) => { if (!Number.isInteger(delta) || delta === 0) return false; const lines = s.carts[userId(ctx)] ?? []; const line = lines.find((entry) => entry.productId === productId); if (!line) return false; line.quantity += delta; if (line.quantity <= 0) s.carts[userId(ctx)] = lines.filter((entry) => entry.productId !== productId); return true; }); }
-export async function removeFromCart(ctx: Ctx, productId: string) { return transaction((s) => { const lines = s.carts[userId(ctx)] ?? []; const before = lines.length; s.carts[userId(ctx)] = lines.filter((entry) => entry.productId !== productId); return s.carts[userId(ctx)].length !== before; }); }
-export async function clearCart(ctx: Ctx) { return transaction((s) => { s.carts[userId(ctx)] = []; }); }
+export async function addToCart(ctx: Ctx, productId: string, quantity = 1) { return transaction((s) => { const product = s.catalog.find((entry) => entry.id === productId); if (!product || !Number.isInteger(quantity) || quantity < 1 || product.availability !== "in_stock") return false; const uid = userId(ctx); const lines = s.carts[uid] ?? (s.carts[uid] = []); const line = lines.find((entry) => entry.productId === productId); if (line) { line.quantity += quantity; line.unitPrice = line.unitPrice ?? product.price; line.catalogUpdatedAt = line.catalogUpdatedAt ?? product.updatedAt; } else lines.push({ productId, quantity, unitPrice: product.price, catalogUpdatedAt: product.updatedAt }); syncCheckoutPricing(s, uid); return true; }); }
+export async function changeCartQuantity(ctx: Ctx, productId: string, delta: number) { return transaction((s) => { if (!Number.isInteger(delta) || delta === 0) return false; const uid = userId(ctx); const lines = s.carts[uid] ?? []; const line = lines.find((entry) => entry.productId === productId); if (!line) return false; line.quantity += delta; if (line.quantity <= 0) s.carts[uid] = lines.filter((entry) => entry.productId !== productId); syncCheckoutPricing(s, uid); return true; }); }
+export async function removeFromCart(ctx: Ctx, productId: string) { return transaction((s) => { const uid = userId(ctx); const lines = s.carts[uid] ?? []; const before = lines.length; s.carts[uid] = lines.filter((entry) => entry.productId !== productId); syncCheckoutPricing(s, uid); return s.carts[uid].length !== before; }); }
+export async function clearCart(ctx: Ctx) { return transaction((s) => { const uid = userId(ctx); s.carts[uid] = []; syncCheckoutPricing(s, uid); }); }
 
 export async function getCheckoutDraft(ctx: Ctx) {
   return (await snapshot()).checkoutDrafts[userId(ctx)];
@@ -173,6 +173,7 @@ export async function saveCheckoutDraft(ctx: Ctx, patch: Partial<Omit<CheckoutDr
     const id = userId(ctx);
     const draft = s.checkoutDrafts[id] ?? (s.checkoutDrafts[id] = { updatedAt: now() });
     Object.assign(draft, patch, { updatedAt: now() });
+    syncCheckoutPricing(s, id);
     return { ...draft };
   });
 }
@@ -194,6 +195,52 @@ export function recalculateOrderTotal(subtotal: number, discountPercent = 0) {
   const safePercent = validatePromoDiscount(discountPercent) ? discountPercent : 0;
   const discountAmount = Math.round(safeSubtotal * safePercent / 100 * 100) / 100;
   return { discountAmount, finalTotal: Math.max(0, Math.round((safeSubtotal - discountAmount) * 100) / 100) };
+}
+
+export interface CheckoutPricing {
+  itemsSubtotal: number;
+  promo?: PromoCode;
+  discountPercent: number;
+  discountAmount: number;
+  finalTotal: number;
+}
+
+function checkoutPricing(state: State, uid: string): CheckoutPricing {
+  const products = new Map(state.catalog.map((product) => [product.id, product]));
+  const itemsSubtotal = (state.carts[uid] ?? []).reduce((sum, line) => {
+    const product = products.get(line.productId);
+    return sum + (product ? product.price * line.quantity : 0);
+  }, 0);
+  const draft = state.checkoutDrafts[uid];
+  const promo = draft?.promoCode
+    ? state.promoCodes.find((entry) => entry.code === normalizePromoCode(draft.promoCode!) && entry.active)
+    : undefined;
+  const totals = recalculateOrderTotal(itemsSubtotal, promo?.discountPercent ?? 0);
+  return {
+    itemsSubtotal: Math.round(itemsSubtotal * 100) / 100,
+    promo,
+    discountPercent: promo?.discountPercent ?? 0,
+    discountAmount: totals.discountAmount,
+    finalTotal: totals.finalTotal,
+  };
+}
+
+function syncCheckoutPricing(state: State, uid: string) {
+  const draft = state.checkoutDrafts[uid];
+  if (!draft) return;
+  const pricing = checkoutPricing(state, uid);
+  Object.assign(draft, {
+    itemsSubtotal: pricing.itemsSubtotal,
+    appliedPromoCodeId: pricing.promo?.id,
+    appliedDiscountPercent: pricing.promo?.discountPercent,
+    discountAmount: pricing.discountAmount,
+    finalTotal: pricing.finalTotal,
+    updatedAt: now(),
+  });
+}
+
+export async function getCheckoutPricing(ctx: Ctx) {
+  return checkoutPricing(await snapshot(), userId(ctx));
 }
 
 export async function listPromoCodes() { return (await snapshot()).promoCodes.map((promo) => ({ ...promo })); }
@@ -232,10 +279,9 @@ export async function applyPromoCode(ctx: Ctx, code: string) {
     if (draft.promoCode === normalized) return { status: "already" as const, draft: { ...draft } };
     const promo = s.promoCodes.find((entry) => entry.code === normalized && entry.active);
     if (!promo) return { status: "invalid" as const };
-    const products = new Map(s.catalog.map((product) => [product.id, product]));
-    const subtotal = (s.carts[uid] ?? []).reduce((sum, line) => { const product = products.get(line.productId); return sum + (product ? product.price * line.quantity : 0); }, 0);
-    const totals = recalculateOrderTotal(subtotal, promo.discountPercent);
-    Object.assign(draft, { promoCode: promo.code, appliedDiscountPercent: promo.discountPercent, discountAmount: totals.discountAmount, finalTotal: totals.finalTotal, updatedAt: now() });
+    const pricing = checkoutPricing(s, uid);
+    const totals = recalculateOrderTotal(pricing.itemsSubtotal, promo.discountPercent);
+    Object.assign(draft, { promoCode: promo.code, appliedPromoCodeId: promo.id, itemsSubtotal: pricing.itemsSubtotal, appliedDiscountPercent: promo.discountPercent, discountAmount: totals.discountAmount, finalTotal: totals.finalTotal, updatedAt: now() });
     return { status: "applied" as const, promo, draft: { ...draft } };
   });
 }
@@ -264,7 +310,7 @@ export async function createOrderFromCheckout(ctx: Ctx, customer: CustomerData, 
     const draft = s.checkoutDrafts[uid];
     const promo = draft?.promoCode ? s.promoCodes.find((entry) => entry.code === normalizePromoCode(draft.promoCode!) && entry.active) : undefined;
     const totals = recalculateOrderTotal(subtotal, promo?.discountPercent ?? 0);
-    const order: Order = { id, userId: uid, createdAt, lines, totalAmount: totals.finalTotal, currency: products.get(lines[0].productId)!.currency, customer, delivery_method, payment_method, status: "🆕 Новый", appliedPromoCode: promo?.code, appliedDiscountPercent: promo?.discountPercent, discountAmount: totals.discountAmount, finalTotal: totals.finalTotal };
+    const order: Order = { id, userId: uid, createdAt, lines, itemsSubtotal: Math.round(subtotal * 100) / 100, totalAmount: totals.finalTotal, currency: products.get(lines[0].productId)!.currency, customer, delivery_method, payment_method, status: "🆕 Новый", appliedPromoCodeId: promo?.id, appliedPromoCode: promo?.code, appliedDiscountPercent: promo?.discountPercent, discountAmount: totals.discountAmount, finalTotal: totals.finalTotal };
     existing.push(order);
     s.carts[uid] = [];
     delete s.checkoutDrafts[uid];
