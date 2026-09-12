@@ -16,7 +16,7 @@ import {
   type PaymentMethod,
   type DeliveryMethod,
 } from "../store.js";
-import { inlineButton, inlineKeyboard } from "../toolkit/index.js";
+import { adminChatId, inlineButton, inlineKeyboard, urlButton } from "../toolkit/index.js";
 
 const composer = new Composer<Ctx>();
 
@@ -115,6 +115,48 @@ async function promoPrompt(ctx: Ctx) {
   await ctx.reply("Введите промокод.", { reply_markup: inlineKeyboard([[inlineButton("Отмена", "checkout:cancel")]]) });
 }
 
+function administratorChats(ctx: Ctx): string[] {
+  const configured = adminChatId(ctx as unknown as Parameters<typeof adminChatId>[0]);
+  if (!configured) return [];
+  return configured.split(/[\s,;]+/).map((chatId) => chatId.trim()).filter(Boolean);
+}
+
+function orderNotification(order: Awaited<ReturnType<typeof createOrderFromCheckout>>, botUsername?: string) {
+  if (!order) return undefined;
+  const itemLines = order.lines.map((line) => `${line.quantity}× ${line.name}`).join("\n");
+  const orderLink = botUsername
+    ? `https://t.me/${botUsername}?start=admin_order_${encodeURIComponent(order.id)}`
+    : undefined;
+  return {
+    text: [
+      `🆕 Новый заказ №${order.id}`,
+      "",
+      `Покупатель: ${order.customer.name}`,
+      `Телефон: ${order.customer.phone}`,
+      "Товары:",
+      itemLines,
+      `Итого: ${formatPrice(order.finalTotal ?? order.totalAmount, order.currency)}`,
+      `Способ оплаты: ${order.payment_method.label}`,
+      `Способ получения: ${order.delivery_method.label}`,
+    ].join("\n"),
+    reply_markup: inlineKeyboard([[orderLink
+      ? urlButton("📦 Открыть заказ", orderLink)
+      : inlineButton("📦 Открыть заказ", `admin:order:view:${order.id}`)]]),
+  };
+}
+
+async function notifyAdministrators(ctx: Ctx, order: Awaited<ReturnType<typeof createOrderFromCheckout>>) {
+  const notification = orderNotification(order, ctx.me?.username);
+  if (!notification) return;
+  for (const chatId of administratorChats(ctx)) {
+    try {
+      await ctx.api.sendMessage(chatId, notification.text, { reply_markup: notification.reply_markup });
+    } catch {
+      // One unavailable administrator must not prevent the buyer's order confirmation.
+    }
+  }
+}
+
 async function begin(ctx: Ctx) {
   if (!(await cartExists(ctx))) return ctx.reply(emptyCartText);
   const draft = await getCheckoutDraft(ctx);
@@ -197,6 +239,7 @@ composer.callbackQuery("checkout:confirm", async (ctx) => {
   if (!draft?.name || !draft.phone || !draft.city || !draft.address || !draft.delivery_method || !draft.payment_method) return begin(ctx);
   const order = await createOrderFromCheckout(ctx, { name: draft.name, phone: draft.phone, city: draft.city, address: draft.address }, draft.delivery_method, draft.payment_method);
   if (!order) return ctx.reply("Не удалось оформить заказ: один из товаров больше недоступен. Проверьте корзину.");
+  await notifyAdministrators(ctx, order);
   ctx.session.flow = { kind: "cart" };
   const items = order.lines.map((line) => `${line.name} × ${line.quantity} — ${formatPrice(line.subtotal, order.currency)}`).join("\n");
   await ctx.reply(`Заказ ${order.id} создан.\n\n${items}\nСтоимость товаров: ${formatPrice(order.lines.reduce((sum, line) => sum + line.subtotal, 0), order.currency)}${order.appliedPromoCode ? `\nПромокод: ${order.appliedPromoCode}\nСкидка: -${order.appliedDiscountPercent}% (-${formatPrice(order.discountAmount ?? 0, order.currency)})` : ""}\nИтого: ${formatPrice(order.finalTotal ?? order.totalAmount, order.currency)}\n\nДоставка: ${order.customer.name}, ${order.customer.phone}, ${order.customer.city}, ${order.customer.address}\nСпособ получения: ${order.delivery_method.label}\nСпособ оплаты: ${order.payment_method.label}`);
