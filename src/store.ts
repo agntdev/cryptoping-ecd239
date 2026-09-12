@@ -26,6 +26,15 @@ export interface OrderLine { productId: string; name: string; unitPrice: number;
 export interface CustomerData { name: string; phone: string; city: string; address: string; }
 export const ORDER_STATUSES = ["🆕 Новый", "🔄 В обработке", "📦 Собирается", "🚚 Отправлен", "✅ Выполнен", "❌ Отменён"] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
+/** Plain status names used in buyer notifications. Keep card labels unchanged. */
+export const ORDER_STATUS_NAMES: Record<OrderStatus, string> = {
+  "🆕 Новый": "Новый",
+  "🔄 В обработке": "В обработке",
+  "📦 Собирается": "Собирается",
+  "🚚 Отправлен": "Отправлен",
+  "✅ Выполнен": "Выполнен",
+  "❌ Отменён": "Отменён",
+};
 export interface Order { id: string; userId: string; createdAt: number; lines: OrderLine[]; totalAmount: number; currency: string; customer: CustomerData; status: OrderStatus; }
 function normalizeOrderStatus(status: unknown): OrderStatus {
   if (ORDER_STATUSES.includes(status as OrderStatus)) return status as OrderStatus;
@@ -210,8 +219,9 @@ export async function updateOrderStatus(orderId: string, status: OrderStatus) {
     for (const orders of Object.values(s.orders)) {
       const order = orders.find((entry) => entry.id === orderId);
       if (order) {
+        const changed = order.status !== status;
         order.status = status;
-        return order;
+        return { order, changed };
       }
     }
     return undefined;

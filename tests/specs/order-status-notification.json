@@ -1,0 +1,14 @@
+[
+  {
+    "name": "Уведомление о статусе не отправляется без доступа владельца",
+    "steps": [
+      {
+        "send": {"callback": "admin:order:status:ORD-20260912:1"},
+        "expect": [
+          {"method": "answerCallbackQuery"},
+          {"method": "sendMessage", "payload": {"text": "Доступ владельца ещё не настроен."}}
+        ]
+      }
+    ]
+  }
+]

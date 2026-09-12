@@ -1,7 +1,7 @@
 import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
 import { inlineButton, inlineKeyboard, requireOwner } from "../toolkit/index.js";
-import { getOrder, listOrders, ORDER_STATUSES, updateOrderStatus, type OrderStatus } from "../store.js";
+import { getOrder, listOrders, ORDER_STATUSES, ORDER_STATUS_NAMES, updateOrderStatus, type OrderStatus } from "../store.js";
 import { formatPrice } from "../locale.js";
 
 const composer = new Composer<Ctx>();
@@ -92,8 +92,21 @@ composer.callbackQuery(/^admin:order:status:(.+):(\d+)$/, async (ctx) => {
   if (!(await owner(ctx))) return;
   const status = ORDER_STATUSES[Number(ctx.match[2])] as OrderStatus | undefined;
   if (!status) return ctx.reply("Не удалось изменить статус заказа.");
-  const order = await updateOrderStatus(ctx.match[1], status);
-  if (!order) return ctx.reply("Заказ не найден.");
+  const result = await updateOrderStatus(ctx.match[1], status);
+  if (!result) return ctx.reply("Заказ не найден.");
+  const { order } = result;
+  // A buyer notification is part of the explicit status action only. Opening
+  // the card never reaches this branch, and repeating the same status is quiet.
+  if (result.changed) {
+    try {
+      await ctx.api.sendMessage(
+        order.userId,
+        `📦 Статус заказа №${order.id} изменён: ${ORDER_STATUS_NAMES[status]}`,
+      );
+    } catch {
+      // A buyer may have blocked/deleted the bot. The admin action still succeeds.
+    }
+  }
   await ctx.reply(`Статус заказа обновлён: ${order.status}`, { reply_markup: inlineKeyboard([[inlineButton("Открыть заказ", `admin:order:view:${order.id}`)]]) });
 });
 
