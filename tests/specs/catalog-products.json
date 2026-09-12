@@ -4,7 +4,7 @@
     "steps": [
       {"send":{"text":"🛍 Каталог"},"expect":[{"method":"sendMessage","payload":{"text":"Выберите категорию товаров"}}]},
       {"send":{"text":"Электроника"},"expect":[{"method":"editMessageText","payload":{"text":"Товары в категории «Электроника»"}}]},
-      {"send":{"callback":"catalog:product:view:electronics:desk-lamp"},"expect":[{"method":"answerCallbackQuery"},{"method":"sendPhoto","payload":{"caption":"Настольная лампа\n\nКомпактная лампа для рабочего стола.\n\nЦена: 2 490,00 ₽\nСтатус: В наличии","reply_markup":{"inline_keyboard":[[{"text":"🛒 Добавить в корзину","callback_data":"catalog:cart:add:electronics:desk-lamp"}],[{"text":"🛒 Открыть корзину","callback_data":"shop:cart:from:electronics:desk-lamp"}],[{"text":"⬅️ Назад","callback_data":"catalog:products:electronics"}]]}}}]},
+      {"send":{"callback":"catalog:product:view:electronics:desk-lamp"},"expect":[{"method":"answerCallbackQuery"},{"method":"sendPhoto","payload":{"caption":"Настольная лампа\n\nКомпактная лампа для рабочего стола.\n\nЦена: 2 490,00 ₽\nСтатус: В наличии","reply_markup":{"inline_keyboard":[[{"text":"🛒 Добавить в корзину","callback_data":"catalog:cart:add:electronics:desk-lamp"}],[{"text":"🛒 Открыть корзину","callback_data":"shop:cart:from:electronics:desk-lamp"}],[{"text":"⬅️ Назад","callback_data":"catalog:products:electronics"}],[{"text":"Главное меню","callback_data":"menu:main"}]]}}}]},
       {"send":{"callback":"catalog:cart:add:electronics:desk-lamp"},"expect":[{"method":"answerCallbackQuery"},{"method":"sendMessage","payload":{"text":"Товар добавлен в корзину."}}]},
       {"send":{"callback":"catalog:products:electronics"},"expect":[{"method":"answerCallbackQuery"},{"method":"sendPhoto"}]}
     ]
