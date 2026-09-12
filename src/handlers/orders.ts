@@ -39,7 +39,7 @@ async function ordersList(ctx: Ctx, page = 0) {
   await ctx.reply(text, { reply_markup: inlineKeyboard(rows) });
   for (const order of result.orders) {
     await ctx.reply(
-      `${order.id}\n${order.status}\n${dateTime(order.createdAt)}\n${order.customer.name}\n${order.customer.phone}\n${order.customer.city}\n${order.customer.address}\nИтого: ${formatPrice(order.totalAmount, order.currency)}`,
+      `${order.id}\n${order.status}\n${dateTime(order.createdAt)}\n${order.customer.name}\n${order.customer.phone}\n${order.customer.city}\n${order.customer.address}\n${order.delivery_method?.label ?? "🚚 Доставка по адресу"}\nИтого: ${formatPrice(order.totalAmount, order.currency)}`,
       { reply_markup: inlineKeyboard([[inlineButton("Открыть заказ", `admin:order:view:${order.id}`)]]) },
     );
   }
@@ -59,6 +59,7 @@ async function orderDetail(ctx: Ctx, orderId: string) {
     `Телефон: ${order.customer.phone}`,
     `Город: ${order.customer.city}`,
     `Адрес: ${order.customer.address}`,
+    `Способ получения: ${order.delivery_method?.label ?? "🚚 Доставка по адресу"}`,
     `Способ оплаты: ${order.payment_method?.label ?? "Не выбран"}`,
     "",
     "Товары:",
