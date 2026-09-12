@@ -59,6 +59,6 @@ describe("order confirmation notification", () => {
     expect(markup.inline_keyboard?.[0]?.[0]?.text).toBe("📦 Открыть заказ");
     expect(markup.inline_keyboard?.[0]?.[0]?.url).toMatch(/^https:\/\/t\.me\/test_bot\?start=admin_order_ORD-/);
     expect(markup.inline_keyboard?.[1]?.[0]).toEqual({ text: "Главное меню", callback_data: "menu:main" });
-    expect(markup.inline_keyboard?.[2]?.[0]).toEqual({ text: "Назад", callback_data: "nav:back" });
+    expect(markup.inline_keyboard?.[2]?.[0]).toEqual({ text: "⬅️ Назад", callback_data: "nav:back" });
   });
 });
