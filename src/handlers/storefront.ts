@@ -106,7 +106,7 @@ async function orders(ctx: Ctx) {
   const state = await snapshot();
   const list = state.orders[userId(ctx)] ?? [];
   if (!list.length) { await ctx.reply("У вас нет заказов", homeMarkup()); return; }
-  await ctx.reply("Ваши заказы\n" + list.map((order) => "Заказ " + order.id + " — " + formatPrice(order.totalAmount, order.currency) + " — " + order.status).join("\n"), homeMarkup());
+  await ctx.reply("Ваши заказы\n" + list.map((order) => "Заказ " + order.id + " — " + formatPrice(order.totalAmount, order.currency) + " — " + order.status + " — " + (order.delivery_method?.label ?? "🚚 Доставка по адресу")).join("\n"), homeMarkup());
 }
 
 async function help(ctx: Ctx) {
