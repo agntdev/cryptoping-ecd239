@@ -1,0 +1,13 @@
+[
+  {
+    "name": "Добавление и управление корзиной",
+    "steps": [
+      {"send":{"callback":"catalog:product:view:electronics:desk-lamp"},"expect":[{"method":"sendPhoto"}]},
+      {"send":{"callback":"catalog:cart:add:electronics:desk-lamp"},"expect":[{"method":"sendMessage","payload":{"text":"Товар добавлен в корзину."}}]},
+      {"send":{"callback":"shop:cart"},"expect":[{"method":"sendPhoto","payload":{"caption":"Настольная лампа\nЦена за единицу: 2 490 RUB\nКоличество: 1\nПодытог: 2 490 RUB"}},{"method":"sendMessage","payload":{"text":"Итого: 2 490 RUB"}}]},
+      {"send":{"callback":"cart:inc:electronics:desk-lamp"},"expect":[{"method":"sendPhoto","payload":{"caption":"Настольная лампа\nЦена за единицу: 2 490 RUB\nКоличество: 2\nПодытог: 4 980 RUB"}},{"method":"sendMessage","payload":{"text":"Итого: 4 980 RUB"}}]},
+      {"send":{"callback":"cart:dec:electronics:desk-lamp"},"expect":[{"method":"sendPhoto","payload":{"caption":"Настольная лампа\nЦена за единицу: 2 490 RUB\nКоличество: 1\nПодытог: 2 490 RUB"}}]},
+      {"send":{"callback":"cart:remove:electronics:desk-lamp"},"expect":[{"method":"sendMessage","payload":{"text":"Корзина пуста. Откройте каталог, чтобы добавить товары."}}]}
+    ]
+  }
+]

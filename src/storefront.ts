@@ -3,6 +3,7 @@ import { inlineButton, inlineKeyboard, registerMainMenuItem } from "./toolkit/in
 /** All navigation is in-chat. No persistent reply keyboard is used. */
 export const menuKeyboard = () => inlineKeyboard([
   [inlineButton("🛍 Каталог", "shop:catalog")],
+  [inlineButton("🛒 Корзина", "shop:cart")],
   [inlineButton("Список наблюдения", "watchlist:view")],
   [inlineButton("Оповещения", "alerts:menu")],
   [inlineButton("Проверить цену", "price:menu")],
