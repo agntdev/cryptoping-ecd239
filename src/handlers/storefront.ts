@@ -41,17 +41,18 @@ async function productList(ctx: Ctx, categoryId: string) {
   const rows = [[inlineButton("⬅️ Назад", "catalog:back:" + categoryId)]];
   await ctx.reply(products.length ? "Товары в категории «" + selected.name + "»" : "В этой категории пока нет товаров.", { reply_markup: inlineKeyboard(rows) });
   for (const product of products) {
-    await ctx.replyWithPhoto(product.photo, { caption: product.name + "\n" + productPrice(product) + "\n" + (product.availability === "in_stock" ? "В наличии" : "Нет в наличии"), reply_markup: inlineKeyboard([[inlineButton(product.name, "catalog:product:view:" + product.id)]]) });
+    const caption = product.name + "\n" + productPrice(product) + "\n" + (product.availability === "in_stock" ? "В наличии" : "Нет в наличии");
+    if (product.photo) await ctx.replyWithPhoto(product.photo, { caption, reply_markup: inlineKeyboard([[inlineButton(product.name, "catalog:product:view:" + product.id)]]) });
+    else await ctx.reply(caption, { reply_markup: inlineKeyboard([[inlineButton(product.name, "catalog:product:view:" + product.id)]]) });
   }
 }
 
 async function productDetail(ctx: Ctx, productId: string) {
   const product = await getCatalogProduct(productId);
   if (!product) return ctx.reply("Товар больше недоступен.");
-  await ctx.replyWithPhoto(product.photo, {
-    caption: product.name + "\n\n" + product.description + "\n\nЦена: " + productPrice(product) + "\nСтатус: " + (product.availability === "in_stock" ? "В наличии" : "Нет в наличии"),
-    reply_markup: inlineKeyboard([[inlineButton("⬅️ Назад", "catalog:products:" + product.categoryId)]]),
-  });
+  const caption = product.name + "\n\n" + product.description + "\n\nЦена: " + productPrice(product) + "\nСтатус: " + (product.availability === "in_stock" ? "В наличии" : "Нет в наличии");
+  if (product.photo) await ctx.replyWithPhoto(product.photo, { caption, reply_markup: inlineKeyboard([[inlineButton("⬅️ Назад", "catalog:products:" + product.categoryId)]]) });
+  else await ctx.reply(caption, { reply_markup: inlineKeyboard([[inlineButton("⬅️ Назад", "catalog:products:" + product.categoryId)]]) });
 }
 
 async function cart(ctx: Ctx) {

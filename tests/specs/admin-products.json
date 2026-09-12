@@ -11,5 +11,14 @@
     "steps": [
       {"send":{"callback":"admin:product:delete:electronics:desk-lamp"},"expect":[{"method":"answerCallbackQuery"},{"method":"sendMessage","payload":{"text":"Доступ владельца ещё не настроен."}}]}
     ]
+  },
+  {
+    "name": "Все экраны управления товарами закрыты без владельца",
+    "steps": [
+      {"send":{"callback":"admin:products:page:1"},"expect":[{"method":"answerCallbackQuery"},{"method":"sendMessage","payload":{"text":"Доступ владельца ещё не настроен."}}]},
+      {"send":{"callback":"admin:product:view:electronics:desk-lamp"},"expect":[{"method":"answerCallbackQuery"},{"method":"sendMessage","payload":{"text":"Доступ владельца ещё не настроен."}}]},
+      {"send":{"callback":"admin:product:edit:electronics:desk-lamp"},"expect":[{"method":"answerCallbackQuery"},{"method":"sendMessage","payload":{"text":"Доступ владельца ещё не настроен."}}]},
+      {"send":{"callback":"admin:product:delete-confirm:electronics:desk-lamp"},"expect":[{"method":"answerCallbackQuery"},{"method":"sendMessage","payload":{"text":"Доступ владельца ещё не настроен."}}]}
+    ]
   }
 ]
