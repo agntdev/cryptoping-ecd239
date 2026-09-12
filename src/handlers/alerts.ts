@@ -1,11 +1,12 @@
 import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
-import { inlineButton, inlineKeyboard } from "../toolkit/index.js";
+import { inlineButton, inlineKeyboard, registerMainMenuItem } from "../toolkit/index.js";
 import { getProfile, saveAlert, snapshot, userId, transaction, now, queueAlert, incrementTrigger, takeQueued } from "../store.js";
 import { quote } from "../crypto.js";
 import { force } from "../storefront.js";
 import { formatDateTime, formatNumber, formatPrice } from "../locale.js";
 const composer = new Composer<Ctx>();
+registerMainMenuItem({ label: "Оповещения", data: "alerts:menu", order: 30 });
 function quietNow(profile: Awaited<ReturnType<typeof getProfile>>) {
   if (!profile.quietStart || !profile.quietEnd) return false;
   const parts = new Intl.DateTimeFormat("ru-RU", { timeZone: profile.timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(now()));
@@ -32,6 +33,10 @@ export async function evaluateUserAlerts(ctx: Ctx) {
   }
 }
 export async function sendMorningSummary(ctx: Ctx) { const queued = await takeQueued(ctx); if (!queued.length) return false; await ctx.reply("Утренний обзор\n" + queued.map((entry) => entry.ticker + ": " + entry.note).join("\n")); return true; }
+composer.callbackQuery("alerts:menu", async (ctx) => {
+  await ctx.answerCallbackQuery();
+  await ctx.editMessageText("Настройте уведомления из списка наблюдения.", { reply_markup: inlineKeyboard([[inlineButton("Список наблюдения", "watchlist:view")], [inlineButton("⬅️ Назад", "menu:main")]]) });
+});
 function itemName(ctx: Ctx, id: string) { return snapshot().then((state) => (state.items[userId(ctx)] ?? []).find((item) => item.id === id)); }
 composer.callbackQuery(/^alert:price:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); const item = await itemName(ctx, ctx.match[1]); if (!item) { await ctx.reply("Этой монеты больше нет в вашем списке."); return; } ctx.session.flow = { kind: "price", itemId: item.id }; await ctx.reply("Введите целевую цену для " + item.ticker + ".", { reply_markup: force("Целевая цена") }); });
 composer.on("message:text", async (ctx, next) => { const flow = ctx.session.flow; if (!flow || flow.kind !== "price") return next(); const value = Number(ctx.message.text.trim().replace(",", ".")); if (!Number.isFinite(value) || value <= 0) { await ctx.reply("Введите положительную цену, например 65000."); return; } ctx.session.flow = { kind: "percent", itemId: flow.itemId, percent: value }; await ctx.reply("Выберите, когда уведомлять: при превышении или снижении цены.", { reply_markup: inlineKeyboard([[inlineButton("Выше цели", "alert:direction:above:" + flow.itemId + ":" + value), inlineButton("Ниже цели", "alert:direction:below:" + flow.itemId + ":" + value)]]) }); });

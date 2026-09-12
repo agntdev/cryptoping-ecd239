@@ -12,13 +12,10 @@ function homeMarkup() { return { reply_markup: menuKeyboard() }; }
 async function catalog(ctx: Ctx) {
   ctx.session.flow = { kind: "catalog" };
   const categories = await listCatalogCategories();
-  await ctx.reply("Выберите категорию товаров", {
-    reply_markup: {
-      keyboard: [...categories.map((category) => [{ text: category.name }]), [{ text: "Добавить категорию" }], [{ text: "⬅️ Назад" }]],
-      resize_keyboard: true,
-      one_time_keyboard: true,
-    },
-  });
+  const rows = categories.map((category) => [inlineButton(category.name, "catalog:category:" + category.id)]);
+  rows.push([inlineButton("Добавить категорию", "catalog:category:create")], [inlineButton("⬅️ Назад", "menu:main")]);
+  const deliver = ctx.callbackQuery ? ctx.editMessageText.bind(ctx) : ctx.reply.bind(ctx);
+  await deliver("Выберите категорию товаров", { reply_markup: inlineKeyboard(rows) });
 }
 
 async function category(ctx: Ctx, categoryId: string) {
@@ -28,9 +25,8 @@ async function category(ctx: Ctx, categoryId: string) {
     return;
   }
   ctx.session.flow = { kind: "category", categoryId: selected.id };
-  await ctx.reply("Категория: " + selected.name, {
-    reply_markup: { keyboard: [[{ text: "⬅️ Назад" }]], resize_keyboard: true, one_time_keyboard: true },
-  });
+  const deliver = ctx.callbackQuery ? ctx.editMessageText.bind(ctx) : ctx.reply.bind(ctx);
+  await deliver("Категория: " + selected.name, { reply_markup: inlineKeyboard([[inlineButton("⬅️ Назад", "catalog:back:" + selected.id)]]) });
   await productList(ctx, selected.id);
 }
 
@@ -190,7 +186,9 @@ composer.callbackQuery("shop:clear", async (ctx) => { await ctx.answerCallbackQu
 composer.callbackQuery("shop:checkout", async (ctx) => { await ctx.answerCallbackQuery(); await ctx.reply("Оформление заказа пока недоступно. Владелец ещё не подключил оплату.", homeMarkup()); });
 composer.callbackQuery(/^catalog:product:create:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await startProduct(ctx, ctx.match[1]); });
 composer.callbackQuery(/^catalog:product:view:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await productDetail(ctx, ctx.match[1]); });
+composer.callbackQuery("catalog:category:create", async (ctx) => { await ctx.answerCallbackQuery(); await createCategory(ctx); });
 composer.callbackQuery(/^catalog:back:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await catalog(ctx); });
+composer.callbackQuery(/^catalog:category:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await category(ctx, ctx.match[1]); });
 composer.callbackQuery(/^catalog:products:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await productList(ctx, ctx.match[1]); });
 composer.callbackQuery(/^catalog:product:availability:(in_stock|out_of_stock)$/, async (ctx) => {
   await ctx.answerCallbackQuery();

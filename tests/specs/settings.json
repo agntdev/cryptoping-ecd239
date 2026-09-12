@@ -1,1 +1,1 @@
-[{"name":"Настройки по умолчанию","steps":[{"send":{"callback":"user:settings"},"expect":[{"method":"sendMessage","payload":{"text":"Настройки\nЧасовой пояс: UTC\nТихие часы: выкл.\nУтренний обзор: выкл.\nПауза уведомлений: 6 ч."}}]}]}]
+[{"name":"Настройки по умолчанию","steps":[{"send":{"callback":"user:settings"},"expect":[{"method":"editMessageText","payload":{"text":"Настройки\nЧасовой пояс: UTC\nТихие часы: выкл.\nУтренний обзор: выкл.\nПауза уведомлений: 6 ч."}}]}]}]

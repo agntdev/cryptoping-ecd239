@@ -1,9 +1,9 @@
 [
   {
-    "name": "Русское приветствие и inline меню",
+    "name": "Команда меню показывает inline-навигацию",
     "steps": [
       {
-        "send": { "text": "/start" },
+        "send": { "text": "/menu" },
         "expect": [
           {
             "method": "sendMessage",

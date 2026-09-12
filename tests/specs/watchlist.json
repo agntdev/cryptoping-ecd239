@@ -1,1 +1,1 @@
-[{"name":"Пустой список","steps":[{"send":{"callback":"watchlist:view"},"expect":[{"method":"sendMessage","payload":{"text":"Ваш список пуст. Нажмите «Добавить монету», чтобы начать."}}]}]}]
+[{"name":"Пустой список","steps":[{"send":{"callback":"watchlist:view"},"expect":[{"method":"editMessageText","payload":{"text":"Ваш список пуст. Нажмите «Добавить монету», чтобы начать."}}]}]}]
