@@ -10,5 +10,5 @@ export const menuKeyboard = (_ctx?: MenuContext) => rawInlineKeyboard([
   [inlineButton("👤 Профиль", "shop:profile")],
   [inlineButton("ℹ️ Помощь", "shop:help")],
 ]);
-export const back = rawInlineKeyboard([[inlineButton("⬅️ Назад", "nav:back"), inlineButton("Главное меню", "menu:main")]]);
+export const back = rawInlineKeyboard([[inlineButton("⬅️ Назад", "nav:back")]]);
 export const force = (placeholder: string) => ({ force_reply: true as const, input_field_placeholder: placeholder });
