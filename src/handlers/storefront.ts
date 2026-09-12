@@ -11,7 +11,7 @@ const composer = new Composer<Ctx>();
 function homeMarkup(ctx: Ctx) { return { reply_markup: menuKeyboard(ctx) }; }
 
 const PAGE_SIZE = 3;
-const nav = (rows: ReturnType<typeof inlineButton>[][] = []) => inlineKeyboard([...rows, [inlineButton("Назад", "nav:back"), inlineButton("Главное меню", "menu:main")]]);
+const nav = (rows: ReturnType<typeof inlineButton>[][] = []) => inlineKeyboard([...rows, [inlineButton("⬅️ Назад", "nav:back"), inlineButton("Главное меню", "menu:main")]]);
 
 async function catalog(ctx: Ctx) {
   ctx.session.flow = { kind: "catalog" };
@@ -72,7 +72,7 @@ export async function cart(ctx: Ctx) {
   const state = await snapshot();
   const lines = state.carts[userId(ctx)] ?? [];
   if (!lines.length) {
-    await showPersistentMenu(ctx, { text: "Корзина пуста. Откройте каталог, чтобы добавить товары.", markup: menuKeyboard(ctx) });
+    await showPersistentMenu(ctx, { text: "Корзина пуста. Откройте каталог, чтобы добавить товары.", markup: nav() });
     return;
   }
   const products = new Map(state.catalog.map((product) => [product.id, product]));
@@ -84,7 +84,7 @@ export async function cart(ctx: Ctx) {
     return product.name + " × " + line.quantity + " — " + formatPrice(product.price * line.quantity, product.currency);
   }).filter((line): line is string => Boolean(line));
   if (!lines.length) {
-    await showPersistentMenu(ctx, { text: "Корзина пуста. Откройте каталог, чтобы добавить товары.", markup: menuKeyboard(ctx) });
+    await showPersistentMenu(ctx, { text: "Корзина пуста. Откройте каталог, чтобы добавить товары.", markup: nav() });
     return;
   }
   for (const line of lines) {

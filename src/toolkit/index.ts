@@ -43,6 +43,6 @@ export function inlineKeyboard(rows: KeyboardButton[][]): KeyboardMarkup {
   const hasBack = normalized.some((row) => row.some((button) =>
     "callback_data" in button && button.callback_data === "nav:back",
   ));
-  if (!hasBack) normalized.push([makeButton("Назад", "nav:back")]);
+  if (!hasBack) normalized.push([makeButton("⬅️ Назад", "nav:back")]);
   return makeKeyboard(normalized);
 }
