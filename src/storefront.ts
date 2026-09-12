@@ -8,6 +8,7 @@ export const menuKeyboard = () => inlineKeyboard([
   [inlineButton("Оповещения", "alerts:menu")],
   [inlineButton("Проверить цену", "price:menu")],
   [inlineButton("Настройки", "user:settings")],
+  [inlineButton("👤 Профиль", "shop:profile")],
 ]);
 registerMainMenuItem({ label: "🛍 Каталог", data: "shop:catalog", order: 10 });
 export const back = inlineKeyboard([[inlineButton("В главное меню", "menu:main")]]);
