@@ -1,0 +1,20 @@
+[
+  {
+    "name": "/dashboard",
+    "steps": [
+      {
+        "expect": [
+          {
+            "method": "sendMessage",
+            "payload": {
+              "text": "Owner-only command to request current metrics dashboard to OWNER_CHAT_ID"
+            }
+          }
+        ],
+        "send": {
+          "text": "/dashboard"
+        }
+      }
+    ]
+  }
+]
