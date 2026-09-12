@@ -1,1 +1,27 @@
-[{"name":"Русское приветствие","steps":[{"send":{"text":"/start"},"expect":[{"method":"sendMessage","payload":{"text":"Добро пожаловать в CryptoWatch. Следите за монетами конфиденциально и получайте понятные уведомления об изменении цен."}}]}]}]
+[
+  {
+    "name": "Русское приветствие и storefront меню",
+    "steps": [
+      {
+        "send": { "text": "/start" },
+        "expect": [
+          {
+            "method": "sendMessage",
+            "payload": {
+              "text": "Добро пожаловать. Выберите раздел в меню ниже.",
+              "reply_markup": {
+                "keyboard": [
+                  [{ "text": "🛍 Каталог" }, { "text": "🛒 Корзина" }],
+                  [{ "text": "📦 Мои заказы" }, { "text": "👤 Профиль" }],
+                  [{ "text": "ℹ️ Помощь" }]
+                ],
+                "resize_keyboard": true,
+                "is_persistent": true
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+]
