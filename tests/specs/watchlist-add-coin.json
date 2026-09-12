@@ -7,7 +7,7 @@
           {
             "method": "sendMessage",
             "payload": {
-              "text": "Start flow to add a coin to the user's watchlist; offers seed buttons and free-text"
+              "text": "Выберите монету или введите другой тикер."
             }
           }
         ],

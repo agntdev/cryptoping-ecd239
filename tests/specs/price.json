@@ -1,1 +1,1 @@
-[{"name":"Empty price check","steps":[{"send":{"text":"/price"},"expect":[{"method":"sendMessage","payload":{"text":"Your watchlist is empty. Tap Add coin to begin."}}]}]}]
+[{"name":"Пустая проверка цены","steps":[{"send":{"text":"/price"},"expect":[{"method":"sendMessage","payload":{"text":"Ваш список пуст. Нажмите «Добавить монету», чтобы начать."}}]}]}]

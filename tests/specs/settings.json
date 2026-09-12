@@ -1,1 +1,1 @@
-[{"name":"Settings defaults","steps":[{"send":{"callback":"user:settings"},"expect":[{"method":"sendMessage","payload":{"text":"Settings\nTimezone: UTC\nQuiet hours: off\nMorning summary: off\nAlert cooldown: 6 hours"}}]}]}]
+[{"name":"Настройки по умолчанию","steps":[{"send":{"callback":"user:settings"},"expect":[{"method":"sendMessage","payload":{"text":"Настройки\nЧасовой пояс: UTC\nТихие часы: выкл.\nУтренний обзор: выкл.\nПауза уведомлений: 6 ч."}}]}]}]

@@ -1,1 +1,1 @@
-[{"name":"Owner access unavailable","steps":[{"send":{"text":"/dashboard"},"expect":[{"method":"sendMessage","payload":{"text":"Owner access isn't set up yet."}}]}]}]
+[{"name":"Доступ владельца не настроен","steps":[{"send":{"text":"/dashboard"},"expect":[{"method":"sendMessage","payload":{"text":"Доступ владельца ещё не настроен."}}]}]}]

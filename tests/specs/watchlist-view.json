@@ -7,7 +7,7 @@
           {
             "method": "sendMessage",
             "payload": {
-              "text": "Open the user's watchlist and per-item controls"
+              "text": "Ваш список пуст. Нажмите «Добавить монету», чтобы начать."
             }
           }
         ],

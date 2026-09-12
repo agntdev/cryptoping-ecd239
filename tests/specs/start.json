@@ -1,1 +1,1 @@
-[{"name":"Welcome menu","steps":[{"send":{"text":"/start"},"expect":[{"method":"sendMessage","payload":{"text":"Welcome to CryptoWatch. Track coins privately and get clear alerts when prices move."}}]}]}]
+[{"name":"Русское приветствие","steps":[{"send":{"text":"/start"},"expect":[{"method":"sendMessage","payload":{"text":"Добро пожаловать в CryptoWatch. Следите за монетами конфиденциально и получайте понятные уведомления об изменении цен."}}]}]}]
