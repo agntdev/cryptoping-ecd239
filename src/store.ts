@@ -12,12 +12,12 @@ export type Flow =
   | { kind: "category"; categoryId: string }
   | { kind: "category-create"; retried?: boolean }
   | { kind: "product-create"; categoryId: string; step: "name" | "photo" | "description" | "price" | "availability"; name?: string; photo?: string; description?: string; price?: number; availability?: "in_stock" | "out_of_stock"; stockCount?: number }
-  | { kind: "product-edit"; productId: string; categoryId: string; step: "name" | "photo" | "description" | "price" | "availability"; name?: string; photo?: string; description?: string; price?: number; availability?: "in_stock" | "out_of_stock"; stockCount?: number }
+  | { kind: "product-edit"; productId: string; categoryId: string; step: "name" | "photo" | "description" | "price" | "availability" | "field"; field?: "name" | "photo" | "description" | "price" | "availability" | "category"; name?: string; photo?: string; description?: string; price?: number; availability?: "in_stock" | "out_of_stock"; stockCount?: number }
   | undefined;
 
 export interface Profile { id: string; timezone: string; fiat: string; quietStart?: string; quietEnd?: string; morning: boolean; summaryTime?: string; cooldown: number; hysteresis: number; lastSeen: number; name?: string; email?: string; address?: string; phone?: string; }
 export interface Item { id: string; ticker: string; name: string; addedAt: number; lastPrice?: number; }
-export interface CatalogProduct { id: string; categoryId: string; name: string; photo: string; price: number; currency: string; description: string; availability: "in_stock" | "out_of_stock"; stockCount?: number; createdAt: number; updatedAt: number; }
+export interface CatalogProduct { id: string; categoryId: string; name: string; photo?: string; price: number; currency: string; description: string; availability: "in_stock" | "out_of_stock"; stockCount?: number; createdAt: number; updatedAt: number; }
 export interface CatalogCategory { id: string; name: string; }
 export interface CartLine { productId: string; quantity: number; }
 export interface Order { id: string; lines: CartLine[]; subtotal: number; currency: string; createdAt: number; status: "pending" | "paid" | "cancelled"; }
