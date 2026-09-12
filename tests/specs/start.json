@@ -17,7 +17,8 @@
                   [{ "text": "🛒 Корзина", "callback_data": "shop:cart" }],
                   [{ "text": "📦 Мои заказы", "callback_data": "shop:orders" }],
                   [{ "text": "👤 Профиль", "callback_data": "shop:profile" }],
-                  [{ "text": "ℹ️ Помощь", "callback_data": "shop:help" }]
+                  [{ "text": "ℹ️ Помощь", "callback_data": "shop:help" }],
+                  [{ "text": "Главное меню", "callback_data": "menu:main" }]
                 ]
               }
             }

@@ -4,7 +4,7 @@ import { touch } from "../store.js";
 import { menuKeyboard } from "../storefront.js";
 import { requireOwner } from "../toolkit/index.js";
 import { orderDetail } from "./orders.js";
-import { backMenu, showMenu as showPersistentMenu } from "../menu-state.js";
+import { showMenu as showPersistentMenu } from "../menu-state.js";
 const composer = new Composer<Ctx>();
 const WELCOME = "Добро пожаловать. Выберите раздел в меню ниже.";
 export async function showMenu(ctx: Ctx, edit: boolean) {
@@ -21,5 +21,8 @@ composer.command("start", async (ctx) => {
   await showMenu(ctx, false);
 });
 composer.command("menu", async (ctx) => showMenu(ctx, false));
-composer.callbackQuery("menu:main", async (ctx) => { await ctx.answerCallbackQuery(); await backMenu(ctx, { text: WELCOME, markup: menuKeyboard(ctx) }); });
+composer.callbackQuery("menu:main", async (ctx) => {
+  await ctx.answerCallbackQuery();
+  await showPersistentMenu(ctx, { text: WELCOME, markup: menuKeyboard(ctx) }, { replace: true });
+});
 export default composer;
