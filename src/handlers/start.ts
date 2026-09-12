@@ -9,6 +9,7 @@ import { showMenu as showPersistentMenu } from "../menu-state.js";
 const composer = new Composer<Ctx>();
 const WELCOME = "Добро пожаловать. Выберите раздел в меню ниже.";
 export async function showMenu(ctx: Ctx, edit: boolean) {
+  ctx.session.flow = undefined;
   await touch(ctx);
   await showPersistentMenu(ctx, { text: WELCOME, markup: menuKeyboard(ctx) }, { replace: !edit });
 }
@@ -24,6 +25,7 @@ composer.command("start", async (ctx) => {
 composer.command("menu", async (ctx) => showMenu(ctx, false));
 composer.callbackQuery("menu:main", async (ctx) => {
   await ctx.answerCallbackQuery();
+  ctx.session.flow = undefined;
   await showPersistentMenu(ctx, { text: WELCOME, markup: menuKeyboard(ctx) }, { replace: true });
 });
 composer.callbackQuery("nav:back", async (ctx) => {
