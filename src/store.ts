@@ -24,7 +24,15 @@ export interface CatalogCategory { id: string; name: string; }
 export interface CartLine { productId: string; quantity: number; unitPrice?: number; catalogUpdatedAt?: number; }
 export interface OrderLine { productId: string; name: string; unitPrice: number; quantity: number; subtotal: number; }
 export interface CustomerData { name: string; phone: string; city: string; address: string; }
-export interface Order { id: string; userId: string; createdAt: number; lines: OrderLine[]; totalAmount: number; currency: string; customer: CustomerData; status: "pending" | "paid" | "cancelled"; }
+export const ORDER_STATUSES = ["🆕 Новый", "🔄 В обработке", "📦 Собирается", "🚚 Отправлен", "✅ Выполнен", "❌ Отменён"] as const;
+export type OrderStatus = (typeof ORDER_STATUSES)[number];
+export interface Order { id: string; userId: string; createdAt: number; lines: OrderLine[]; totalAmount: number; currency: string; customer: CustomerData; status: OrderStatus; }
+function normalizeOrderStatus(status: unknown): OrderStatus {
+  if (ORDER_STATUSES.includes(status as OrderStatus)) return status as OrderStatus;
+  if (status === "paid") return "✅ Выполнен";
+  if (status === "cancelled") return "❌ Отменён";
+  return "🆕 Новый";
+}
 export interface CheckoutDraft { name?: string; phone?: string; city?: string; address?: string; updatedAt: number; }
 export interface Alert { id: string; itemId: string; type: "threshold" | "percent"; price?: number; direction?: "above" | "below"; percent?: number; window?: string; baseline?: number; createdAt: number; lastTriggered?: number; cooldownHours: number; enabled: boolean; }
 export interface Queued { id: string; itemId: string; ticker: string; detectedAt: number; note: string; }
@@ -54,7 +62,14 @@ async function read() {
   const saved = (await adapter?.read(KEY)) as Partial<State> | undefined;
   if (!saved) return empty();
   const catalog = (saved.catalog ?? empty().catalog).map((product) => ({ ...product, createdAt: product.createdAt ?? 0, updatedAt: product.updatedAt ?? product.createdAt ?? 0 }));
-  return { ...empty(), ...saved, catalog, categories: saved.categories ?? empty().categories, carts: saved.carts ?? {}, orders: saved.orders ?? {}, checkoutDrafts: saved.checkoutDrafts ?? {}, metrics: { ...empty().metrics, ...saved.metrics }, config: { ...empty().config, ...saved.config } } as State;
+  const orders = Object.fromEntries(Object.entries(saved.orders ?? {}).map(([userId, userOrders]) => [
+    userId,
+    (userOrders ?? []).map((order) => ({
+      ...order,
+      status: normalizeOrderStatus(order.status),
+    })),
+  ]));
+  return { ...empty(), ...saved, catalog, categories: saved.categories ?? empty().categories, carts: saved.carts ?? {}, orders, checkoutDrafts: saved.checkoutDrafts ?? {}, metrics: { ...empty().metrics, ...saved.metrics }, config: { ...empty().config, ...saved.config } } as State;
 }
 async function write(s: State) { if (!adapter) throw new Error("Store is not configured"); await adapter.write(KEY, s); }
 export async function transaction<T>(fn: (s: State) => T | Promise<T>): Promise<T> { const run = queue.then(async () => { const s = await read(); const result = await fn(s); await write(s); return result; }); queue = run.then(() => undefined, () => undefined); return run; }
@@ -160,7 +175,7 @@ export async function createOrderFromCheckout(ctx: Ctx, customer: CustomerData) 
     let suffix = 2;
     const allOrders = Object.values(s.orders).flat();
     while (allOrders.some((order) => order.id === id)) id = `ORD-${stamp}-${suffix++}`;
-    const order: Order = { id, userId: uid, createdAt, lines, totalAmount: lines.reduce((sum, line) => sum + line.subtotal, 0), currency: products.get(lines[0].productId)!.currency, customer, status: "pending" };
+    const order: Order = { id, userId: uid, createdAt, lines, totalAmount: lines.reduce((sum, line) => sum + line.subtotal, 0), currency: products.get(lines[0].productId)!.currency, customer, status: "🆕 Новый" };
     existing.push(order);
     s.carts[uid] = [];
     delete s.checkoutDrafts[uid];
@@ -187,4 +202,18 @@ export async function getOrder(orderId: string) {
     if (order) return order;
   }
   return undefined;
+}
+
+export async function updateOrderStatus(orderId: string, status: OrderStatus) {
+  if (!ORDER_STATUSES.includes(status)) return undefined;
+  return transaction((s) => {
+    for (const orders of Object.values(s.orders)) {
+      const order = orders.find((entry) => entry.id === orderId);
+      if (order) {
+        order.status = status;
+        return order;
+      }
+    }
+    return undefined;
+  });
 }
