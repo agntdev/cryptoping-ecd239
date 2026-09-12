@@ -1,1 +1,0 @@
-[{"name":"Пустая корзина","steps":[{"send":{"callback":"cart:open"},"expect":[{"method":"sendMessage","payload":{"text":"Корзина пуста. Откройте каталог, чтобы выбрать товары."}}]}]}]

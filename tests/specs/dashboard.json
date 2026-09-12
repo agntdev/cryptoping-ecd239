@@ -1,1 +1,1 @@
-[{"name":"Доступ к панели закрыт без владельца","steps":[{"send":{"text":"/dashboard"},"expect":[{"method":"sendMessage","payload":{"text":"Owner access isn't set up yet."}}]}]}]
+[{"name":"Owner access unavailable","steps":[{"send":{"text":"/dashboard"},"expect":[{"method":"sendMessage","payload":{"text":"Owner access isn't set up yet."}}]}]}]
