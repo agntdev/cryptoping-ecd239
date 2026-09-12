@@ -1,5 +1,8 @@
 [
-  {"name":"Пустой каталог","steps":[{"send":{"text":"🛍 Каталог"},"expect":[{"method":"sendMessage","payload":{"text":"Каталог пока пуст. Товары появятся здесь позже."}}]}]},
+  {"name":"Каталог и возврат в меню","steps":[
+    {"send":{"text":"🛍 Каталог"},"expect":[{"method":"sendMessage","payload":{"text":"Выберите категорию товаров","reply_markup":{"keyboard":[[{"text":"⬅️ Назад"}]],"resize_keyboard":true,"one_time_keyboard":true}}}]},
+    {"send":{"text":"⬅️ Назад"},"expect":[{"method":"sendMessage","payload":{"text":"Добро пожаловать. Выберите раздел в меню ниже.","reply_markup":{"keyboard":[[{"text":"🛍 Каталог"},{"text":"🛒 Корзина"}],[{"text":"📦 Мои заказы"},{"text":"👤 Профиль"}],[{"text":"ℹ️ Помощь"}]],"resize_keyboard":true,"is_persistent":true}}}]}
+  ]},
   {"name":"Пустая корзина","steps":[{"send":{"text":"🛒 Корзина"},"expect":[{"method":"sendMessage","payload":{"text":"Корзина пуста. Откройте каталог, чтобы добавить товары."}}]}]},
   {"name":"Пустая история заказов","steps":[{"send":{"text":"📦 Мои заказы"},"expect":[{"method":"sendMessage","payload":{"text":"У вас нет заказов"}}]}]},
   {"name":"Профиль","steps":[{"send":{"text":"👤 Профиль"},"expect":[{"method":"sendMessage","payload":{"text":"Ваш профиль\nИмя: не указано\nEmail: не указан\nАдрес доставки: не указан\nТелефон: не указан\nЧасовой пояс: UTC\nТихие часы: выкл."}}]}]},
