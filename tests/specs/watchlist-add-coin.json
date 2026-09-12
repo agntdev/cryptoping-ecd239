@@ -5,7 +5,7 @@
       {
         "expect": [
           {
-            "method": "sendMessage",
+            "method": "editMessageText",
             "payload": {
               "text": "Выберите монету или введите другой тикер."
             }

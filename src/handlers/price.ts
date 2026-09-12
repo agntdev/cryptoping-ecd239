@@ -1,19 +1,20 @@
 import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
-import { registerMainMenuItem } from "../toolkit/index.js";
+import { inlineButton, inlineKeyboard, registerMainMenuItem } from "../toolkit/index.js";
 import { getProfile, snapshot, userId, transaction, now } from "../store.js";
 import { quote } from "../crypto.js";
 import { formatDateTime, formatPrice } from "../locale.js";
 
-registerMainMenuItem({ label: "Проверить цену", data: "price:menu", order: 30 });
+registerMainMenuItem({ label: "Проверить цену", data: "price:menu", order: 40 });
 const composer = new Composer<Ctx>();
 
 async function check(ctx: Ctx, ticker?: string) {
+  const deliver = ctx.callbackQuery ? ctx.editMessageText.bind(ctx) : ctx.reply.bind(ctx);
   const profile = await getProfile(ctx);
   const state = await snapshot();
   const symbols = ticker ? [ticker.toUpperCase()] : (state.items[userId(ctx)] ?? []).map((item) => item.ticker);
   if (!symbols.length) {
-    await ctx.reply("Ваш список пуст. Нажмите «Добавить монету», чтобы начать.");
+    await deliver("Ваш список пуст. Нажмите «Добавить монету», чтобы начать.", { reply_markup: inlineKeyboard([[inlineButton("Список наблюдения", "watchlist:view")], [inlineButton("⬅️ Назад", "menu:main")]]) });
     return;
   }
   const lines: string[] = [];
@@ -29,10 +30,10 @@ async function check(ctx: Ctx, ticker?: string) {
   }
   if (!lines.length) {
     await transaction((saved) => { saved.metrics.errors += 1; });
-    await ctx.reply("Не удалось получить данные о цене. Попробуйте ещё раз позже.");
+    await deliver("Не удалось получить данные о цене. Попробуйте ещё раз позже.", { reply_markup: inlineKeyboard([[inlineButton("⬅️ Назад", "menu:main")]]) });
     return;
   }
-  await ctx.reply("Текущие цены\n" + lines.join("\n") + "\nИсточник: CoinGecko · " + formatDateTime(now(), profile.timezone));
+  await deliver("Текущие цены\n" + lines.join("\n") + "\nИсточник: CoinGecko · " + formatDateTime(now(), profile.timezone), { reply_markup: inlineKeyboard([[inlineButton("⬅️ Назад", "menu:main")]]) });
 }
 
 composer.command("price", async (ctx) => { await check(ctx, ctx.match.trim() || undefined); });

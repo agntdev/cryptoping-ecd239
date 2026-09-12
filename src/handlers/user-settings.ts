@@ -4,10 +4,10 @@ import { registerMainMenuItem, inlineButton, inlineKeyboard } from "../toolkit/i
 import { getProfile, updateProfile } from "../store.js";
 import { force } from "../storefront.js";
 import { evaluateUserAlerts, sendMorningSummary } from "./alerts.js";
-registerMainMenuItem({ label: "Настройки", data: "user:settings", order: 40 });
+registerMainMenuItem({ label: "Настройки", data: "user:settings", order: 50 });
 const composer = new Composer<Ctx>();
 function keyboard() { return inlineKeyboard([[inlineButton("Часовой пояс", "settings:timezone"), inlineButton("Тихие часы", "settings:quiet")], [inlineButton("Утренний обзор", "settings:summary"), inlineButton("Пауза уведомлений", "settings:cooldown")], [inlineButton("Проверить уведомления", "alerts:check"), inlineButton("Отправить обзор", "summary:send")], [inlineButton("В главное меню", "menu:main")]]); }
-composer.callbackQuery("user:settings", async (ctx) => { await ctx.answerCallbackQuery(); const p = await getProfile(ctx); await ctx.reply("Настройки\nЧасовой пояс: " + p.timezone + "\nТихие часы: " + (p.quietStart && p.quietEnd ? p.quietStart + "–" + p.quietEnd : "выкл.") + "\nУтренний обзор: " + (p.morning ? p.summaryTime ?? "включён" : "выкл.") + "\nПауза уведомлений: " + p.cooldown + " ч.", { reply_markup: keyboard() }); });
+composer.callbackQuery("user:settings", async (ctx) => { await ctx.answerCallbackQuery(); const p = await getProfile(ctx); await ctx.editMessageText("Настройки\nЧасовой пояс: " + p.timezone + "\nТихие часы: " + (p.quietStart && p.quietEnd ? p.quietStart + "–" + p.quietEnd : "выкл.") + "\nУтренний обзор: " + (p.morning ? p.summaryTime ?? "включён" : "выкл.") + "\nПауза уведомлений: " + p.cooldown + " ч.", { reply_markup: keyboard() }); });
 composer.callbackQuery("settings:timezone", async (ctx) => { await ctx.answerCallbackQuery(); ctx.session.flow = { kind: "settings", step: "timezone" }; await ctx.reply("Введите часовой пояс IANA, например Europe/London.", { reply_markup: force("Часовой пояс") }); });
 composer.callbackQuery("settings:quiet", async (ctx) => { await ctx.answerCallbackQuery(); ctx.session.flow = { kind: "settings", step: "quiet" }; await ctx.reply("Введите тихие часы в формате ЧЧ:ММ-ЧЧ:ММ или «выкл».", { reply_markup: force("22:00-07:00") }); });
 composer.callbackQuery("settings:summary", async (ctx) => { await ctx.answerCallbackQuery(); ctx.session.flow = { kind: "settings", step: "summary" }; await ctx.reply("Введите время утреннего обзора в формате ЧЧ:ММ или «выкл».", { reply_markup: force("08:00") }); });

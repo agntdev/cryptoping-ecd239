@@ -5,7 +5,7 @@
       {
         "expect": [
           {
-            "method": "sendMessage",
+            "method": "editMessageText",
             "payload": {
               "text": "Ваш список пуст. Нажмите «Добавить монету», чтобы начать."
             }

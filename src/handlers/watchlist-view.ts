@@ -4,15 +4,16 @@ import { inlineButton, inlineKeyboard, registerMainMenuItem } from "../toolkit/i
 import { snapshot, userId, removeItem } from "../store.js";
 import { formatPrice } from "../locale.js";
 
-registerMainMenuItem({ label: "Мой список", data: "watchlist:view", order: 20 });
+registerMainMenuItem({ label: "Список наблюдения", data: "watchlist:view", order: 20 });
 const composer = new Composer<Ctx>();
 async function show(ctx: Ctx) {
   const state = await snapshot();
   const items = state.items[userId(ctx)] ?? [];
-  if (!items.length) { await ctx.reply("Ваш список пуст. Нажмите «Добавить монету», чтобы начать.", { reply_markup: inlineKeyboard([[inlineButton("Добавить монету", "watchlist:add_coin"), inlineButton("В главное меню", "menu:main")]]) }); return; }
+  const send = ctx.callbackQuery ? ctx.editMessageText.bind(ctx) : ctx.reply.bind(ctx);
+  if (!items.length) { await send("Ваш список пуст. Нажмите «Добавить монету», чтобы начать.", { reply_markup: inlineKeyboard([[inlineButton("Добавить монету", "watchlist:add_coin")], [inlineButton("⬅️ Назад", "menu:main")]]) }); return; }
   const rows = items.map((item) => [inlineButton(item.ticker + (item.lastPrice ? " · " + formatPrice(item.lastPrice, "USD") : ""), "coin:item:" + item.id)]);
-  rows.push([inlineButton("Добавить монету", "watchlist:add_coin"), inlineButton("В главное меню", "menu:main")]);
-  await ctx.reply("Ваш список монет", { reply_markup: inlineKeyboard(rows) });
+  rows.push([inlineButton("Добавить монету", "watchlist:add_coin")], [inlineButton("⬅️ Назад", "menu:main")]);
+  await send("Ваш список монет", { reply_markup: inlineKeyboard(rows) });
 }
 composer.callbackQuery("watchlist:view", async (ctx) => { await ctx.answerCallbackQuery(); await show(ctx); });
 composer.callbackQuery(/^coin:item:(.+)$/, async (ctx) => {

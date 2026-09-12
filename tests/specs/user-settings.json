@@ -5,7 +5,7 @@
       {
         "expect": [
           {
-            "method": "sendMessage",
+            "method": "editMessageText",
             "payload": {
             "text": "Настройки\nЧасовой пояс: UTC\nТихие часы: выкл.\nУтренний обзор: выкл.\nПауза уведомлений: 6 ч."
             }
