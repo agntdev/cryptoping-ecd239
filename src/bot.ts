@@ -13,7 +13,13 @@ export interface Session {
     messageId: number;
     text: string;
     markup: unknown;
-    history: Array<{ text: string; markup: unknown }>;
+    flow?: import("./store.js").Flow;
+    history: Array<{
+      text: string;
+      markup: unknown;
+      /** The flow belonging to this screen, restored when Back is pressed. */
+      flow?: import("./store.js").Flow;
+    }>;
   };
 }
 
