@@ -7,7 +7,7 @@ import { requireOwner } from "../toolkit/index.js";
 import { orderDetail } from "./orders.js";
 import { showMenu as showPersistentMenu } from "../menu-state.js";
 const composer = new Composer<Ctx>();
-const WELCOME = "Добро пожаловать. Выберите раздел в меню ниже.";
+const WELCOME = "Добро пожаловать. Выберите раздел каталога или откройте избранное.";
 export async function showMenu(ctx: Ctx, edit: boolean) {
   ctx.session.flow = undefined;
   await touch(ctx);

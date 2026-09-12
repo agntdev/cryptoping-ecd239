@@ -4,7 +4,9 @@ import type { StorageAdapter } from "grammy";
 export type Flow =
   | { kind: "profile"; field?: "name" | "phone" | "city" | "address"; draft: { name?: string; phone?: string; city?: string; address?: string } }
   | { kind: "catalog" }
-  | { kind: "category"; categoryId: string }
+  | { kind: "category"; categoryId: string; page?: number }
+  | { kind: "subcategory"; categoryId: string; subcategoryId: string; page?: number }
+  | { kind: "search"; query: string; page?: number }
   | { kind: "cart"; returnProductId?: string; returnCategoryId?: string }
   | { kind: "checkout"; step: "name" | "phone" | "city" | "address" | "delivery" | "payment" | "promo" | "summary"; editing?: boolean }
   | { kind: "promo-create"; step: "code" | "discount"; code?: string }
@@ -15,8 +17,8 @@ export type Flow =
   | undefined;
 
 export interface Profile { id: string; lastSeen: number; name?: string; phone?: string; city?: string; address?: string; email?: string; }
-export interface CatalogProduct { id: string; categoryId: string; name: string; photo?: string; price: number; currency: string; description: string; availability: "in_stock" | "out_of_stock"; stockCount?: number; createdAt: number; updatedAt: number; }
-export interface CatalogCategory { id: string; name: string; }
+export interface CatalogProduct { id: string; categoryId: string; name: string; photo?: string; photos?: string[]; price: number; currency: string; description: string; sizes?: string[]; colors?: string[]; availability: "in_stock" | "out_of_stock"; stockCount?: number; createdAt: number; updatedAt: number; }
+export interface CatalogCategory { id: string; name: string; parentId?: string; }
 export interface CartLine { productId: string; quantity: number; unitPrice?: number; catalogUpdatedAt?: number; }
 export interface OrderLine { productId: string; name: string; unitPrice: number; quantity: number; subtotal: number; }
 export interface CustomerData { name: string; phone: string; city: string; address: string; }
@@ -54,25 +56,34 @@ function normalizeOrderStatus(status: unknown): OrderStatus {
 export interface CheckoutDraft { name?: string; phone?: string; city?: string; address?: string; delivery_method?: DeliveryMethod; payment_method?: PaymentMethod; promoCode?: string; appliedPromoCodeId?: string; itemsSubtotal?: number; appliedDiscountPercent?: number; discountAmount?: number; finalTotal?: number; updatedAt: number; }
 /** Prevent accidental or malicious cart totals from becoming unmanageable. */
 export const MAX_CART_QUANTITY = 99;
-export interface State { version: 2; users: Record<string, Profile>; catalog: CatalogProduct[]; categories: CatalogCategory[]; carts: Record<string, CartLine[]>; orders: Record<string, Order[]>; promoCodes: PromoCode[]; checkoutDrafts: Record<string, CheckoutDraft>; }
+export interface State { version: 3; users: Record<string, Profile>; catalog: CatalogProduct[]; categories: CatalogCategory[]; carts: Record<string, CartLine[]>; orders: Record<string, Order[]>; promoCodes: PromoCode[]; checkoutDrafts: Record<string, CheckoutDraft>; favorites: Record<string, string[]>; }
 
 let adapter: StorageAdapter<unknown> | undefined;
 let clock = () => Date.now();
 let queue: Promise<unknown> = Promise.resolve();
-const KEY = "storefront:state:v2";
+const KEY = "storefront:state:v3";
 const initialCategories: CatalogCategory[] = [
-  { id: "electronics", name: "Электроника" },
-  { id: "clothing", name: "Одежда" },
-  { id: "books", name: "Книги" },
-  { id: "home-and-garden", name: "Дом и сад" },
+  { id: "men", name: "Мужчины" }, { id: "women", name: "Женщины" },
+  { id: "kids", name: "Дети" }, { id: "accessories", name: "Аксессуары" },
+  { id: "men:tops", name: "Верхняя одежда", parentId: "men" },
+  { id: "men:basics", name: "Базовая одежда", parentId: "men" },
+  { id: "women:dresses", name: "Платья", parentId: "women" },
+  { id: "women:basics", name: "Базовая одежда", parentId: "women" },
+  { id: "kids:everyday", name: "На каждый день", parentId: "kids" },
+  { id: "accessories:bags", name: "Сумки", parentId: "accessories" },
+  // Kept as a non-navigable compatibility record for existing carts and orders.
+  { id: "legacy:clothing", name: "Архив", parentId: "legacy" },
 ];
 const initialProducts: CatalogProduct[] = [
-  { id: "electronics:desk-lamp", categoryId: "electronics", name: "Настольная лампа", photo: "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=640", description: "Компактная лампа для рабочего стола.", price: 2490, currency: "RUB", availability: "in_stock", createdAt: 0, updatedAt: 0 },
-  { id: "clothing:hoodie", categoryId: "clothing", name: "Базовый худи", photo: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=640", description: "Мягкий хлопковый худи на каждый день.", price: 3990, currency: "RUB", availability: "in_stock", createdAt: 0, updatedAt: 0 },
-  { id: "books:design-book", categoryId: "books", name: "Книга о дизайне", photo: "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=640", description: "Практическое введение в принципы дизайна.", price: 1290, currency: "RUB", availability: "out_of_stock", createdAt: 0, updatedAt: 0 },
-  { id: "home-and-garden:planter", categoryId: "home-and-garden", name: "Керамическое кашпо", photo: "https://images.unsplash.com/photo-1485955900006-10f4d324d411?w=640", description: "Керамическое кашпо для домашних растений.", price: 1890, currency: "RUB", availability: "in_stock", createdAt: 0, updatedAt: 0 },
+  { id: "men:overshirt", categoryId: "men:tops", name: "Хлопковая overshirt", photo: "https://images.unsplash.com/photo-1610652492500-ded49ceeb378?w=640", description: "Плотная рубашка свободного кроя для многослойных образов.", sizes: ["S", "M", "L", "XL"], colors: ["Молочный", "Графит"], price: 6990, currency: "RUB", availability: "in_stock", createdAt: 0, updatedAt: 0 },
+  { id: "men:hoodie", categoryId: "men:basics", name: "Базовый худи", photo: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=640", description: "Мягкий хлопковый худи на каждый день.", sizes: ["S", "M", "L", "XL"], colors: ["Чёрный", "Серый"], price: 4990, currency: "RUB", availability: "in_stock", createdAt: 0, updatedAt: 0 },
+  { id: "women:dress", categoryId: "women:dresses", name: "Платье миди", photo: "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=640", description: "Лаконичное платье миди с мягкой линией талии.", sizes: ["XS", "S", "M", "L"], colors: ["Чёрный", "Синий"], price: 7990, currency: "RUB", availability: "in_stock", createdAt: 0, updatedAt: 0 },
+  { id: "women:tee", categoryId: "women:basics", name: "Футболка из хлопка", photo: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=640", description: "Универсальная футболка из плотного хлопка.", sizes: ["XS", "S", "M", "L"], colors: ["Белый", "Песочный"], price: 2490, currency: "RUB", availability: "in_stock", createdAt: 0, updatedAt: 0 },
+  { id: "kids:sweater", categoryId: "kids:everyday", name: "Детский свитер", photo: "https://images.unsplash.com/photo-1519238263530-99bdd11df2ea?w=640", description: "Тёплый свитер для прогулок и школы.", sizes: ["104", "116", "128", "140"], colors: ["Синий", "Зелёный"], price: 3290, currency: "RUB", availability: "in_stock", createdAt: 0, updatedAt: 0 },
+  { id: "accessories:tote", categoryId: "accessories:bags", name: "Сумка-шоппер", photo: "https://images.unsplash.com/photo-1544816155-12df9643f363?w=640", description: "Вместительная сумка из прочного текстиля.", sizes: ["Единый"], colors: ["Натуральный", "Чёрный"], price: 1990, currency: "RUB", availability: "in_stock", createdAt: 0, updatedAt: 0 },
+  { id: "electronics:desk-lamp", categoryId: "legacy:clothing", name: "Настольная лампа", photo: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=640", description: "Компактная лампа для рабочего стола.", price: 2490, currency: "RUB", availability: "in_stock", createdAt: 0, updatedAt: 0 },
 ];
-const empty = (): State => ({ version: 2, users: {}, catalog: initialProducts.map((product) => ({ ...product })), categories: initialCategories.map((category) => ({ ...category })), carts: {}, orders: {}, promoCodes: [], checkoutDrafts: {} });
+const empty = (): State => ({ version: 3, users: {}, catalog: initialProducts.map((product) => ({ ...product })), categories: initialCategories.map((category) => ({ ...category })), carts: {}, orders: {}, promoCodes: [], checkoutDrafts: {}, favorites: {} });
 export const now = () => clock();
 export function setClockForTests(fn?: () => number) { clock = fn ?? (() => Date.now()); }
 export function configureDomainStore(next: StorageAdapter<unknown>) { adapter = next; }
@@ -89,7 +100,7 @@ async function read() {
       finalTotal: order.finalTotal ?? order.totalAmount,
     })),
   ]));
-  return { ...empty(), catalog, categories: saved.categories ?? empty().categories, carts: saved.carts ?? {}, orders, promoCodes: saved.promoCodes ?? [], checkoutDrafts: saved.checkoutDrafts ?? {}, users: Object.fromEntries(Object.entries(saved.users ?? {}).map(([id, profile]) => [id, { id, lastSeen: profile?.lastSeen ?? 0, name: profile?.name, phone: profile?.phone, city: profile?.city, address: profile?.address, email: profile?.email }])) } as State;
+  return { ...empty(), catalog, categories: saved.categories ?? empty().categories, carts: saved.carts ?? {}, orders, promoCodes: saved.promoCodes ?? [], checkoutDrafts: saved.checkoutDrafts ?? {}, favorites: saved.favorites ?? {}, users: Object.fromEntries(Object.entries(saved.users ?? {}).map(([id, profile]) => [id, { id, lastSeen: profile?.lastSeen ?? 0, name: profile?.name, phone: profile?.phone, city: profile?.city, address: profile?.address, email: profile?.email }])) } as State;
 }
 async function write(s: State) { if (!adapter) throw new Error("Store is not configured"); await adapter.write(KEY, s); }
 export async function transaction<T>(fn: (s: State) => T | Promise<T>): Promise<T> { const run = queue.then(async () => { const s = await read(); const result = await fn(s); await write(s); return result; }); queue = run.then(() => undefined, () => undefined); return run; }
@@ -102,10 +113,13 @@ export async function updateProfile(ctx: Ctx, patch: Partial<Profile>) { return 
 
 /** Hook for a future catalog service or owner import. Products are durable. */
 export async function addCatalogProduct(product: CatalogProduct) { return transaction((s) => { const index = s.catalog.findIndex((entry) => entry.id === product.id); if (index >= 0) s.catalog[index] = product; else s.catalog.push(product); return product; }); }
-export async function listCatalogCategories() { return (await snapshot()).categories; }
+export async function listCatalogCategories(parentId?: string) { return (await snapshot()).categories.filter((category) => (category.parentId ?? undefined) === parentId); }
 export async function getCatalogCategory(id: string) { return (await snapshot()).categories.find((category) => category.id === id); }
 export async function listCatalogProducts(categoryId: string) { return (await snapshot()).catalog.filter((product) => product.categoryId === categoryId); }
 export async function getCatalogProduct(id: string) { return (await snapshot()).catalog.find((product) => product.id === id); }
+export async function searchCatalogProducts(query: string) { const q = query.trim().toLocaleLowerCase(); return (await snapshot()).catalog.filter((product) => (product.name + " " + product.description).toLocaleLowerCase().includes(q)); }
+export async function listFavorites(ctx: Ctx) { const s = await snapshot(); const ids = s.favorites[userId(ctx)] ?? []; return ids.map((id) => s.catalog.find((product) => product.id === id)).filter((product): product is CatalogProduct => Boolean(product)); }
+export async function toggleFavorite(ctx: Ctx, productId: string) { return transaction((s) => { const id = userId(ctx); const list = s.favorites[id] ?? (s.favorites[id] = []); const at = list.indexOf(productId); if (at >= 0) { list.splice(at, 1); return false; } if (s.catalog.some((product) => product.id === productId)) list.push(productId); return true; }); }
 export async function createCatalogProduct(product: Omit<CatalogProduct, "id" | "createdAt" | "updatedAt">) {
   return transaction((s) => {
     const base = product.categoryId + ":" + product.name.toLocaleLowerCase().normalize("NFKD").replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "") || "product";

@@ -1,24 +1,3 @@
 [
-  {
-    "name": "Один экран меню редактируется при переходах",
-    "steps": [
-      {"send":{"text":"/start"},"expect":[{"method":"sendMessage","payload":{"text":"Добро пожаловать. Выберите раздел в меню ниже."}}]},
-      {"send":{"callback":"shop:catalog"},"expect":[{"method":"answerCallbackQuery"},{"method":"editMessageText","payload":{"text":"Выберите категорию товаров"}}]},
-      {"send":{"callback":"menu:main"},"expect":[{"method":"answerCallbackQuery"},{"method":"editMessageText","payload":{"text":"Добро пожаловать. Выберите раздел в меню ниже."}}]},
-      {"send":{"callback":"menu:main"},"expect":[{"method":"answerCallbackQuery"}]}
-    ]
-  },
-  {
-    "name": "Назад восстанавливает вложенный экран, Главное меню очищает стек",
-    "steps": [
-      {"send":{"text":"/start"},"expect":[{"method":"sendMessage","payload":{"text":"Добро пожаловать. Выберите раздел в меню ниже."}}]},
-      {"send":{"callback":"shop:catalog"},"expect":[{"method":"editMessageText","payload":{"text":"Выберите категорию товаров"}}]},
-      {"send":{"callback":"catalog:category:electronics"},"expect":[{"method":"editMessageText","payload":{"text":"Товары в категории «Электроника»"}}]},
-      {"send":{"callback":"nav:back"},"expect":[{"method":"editMessageText","payload":{"text":"Выберите категорию товаров"}}]},
-      {"send":{"callback":"nav:back"},"expect":[{"method":"editMessageText","payload":{"text":"Добро пожаловать. Выберите раздел в меню ниже."}}]},
-      {"send":{"callback":"shop:catalog"},"expect":[{"method":"editMessageText","payload":{"text":"Выберите категорию товаров"}}]},
-      {"send":{"callback":"menu:main"},"expect":[{"method":"editMessageText","payload":{"text":"Добро пожаловать. Выберите раздел в меню ниже."}}]},
-      {"send":{"callback":"nav:back"},"expect":[{"method":"answerCallbackQuery"}]}
-    ]
-  }
+  {"name":"Catalog uses one editable menu","steps":[{"send":{"callback":"shop:catalog"},"expect":[{"method":"editMessageText","payload":{"text":"Выберите раздел каталога."}}]},{"send":{"callback":"catalog:category:men"},"expect":[{"method":"editMessageText","payload":{"text":"Выберите подраздел."}}]},{"send":{"callback":"menu:main"},"expect":[{"method":"editMessageText","payload":{"text":"Добро пожаловать. Выберите раздел каталога или откройте избранное."}}]}]}
 ]

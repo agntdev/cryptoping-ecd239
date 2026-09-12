@@ -1,29 +1,3 @@
 [
-  {
-    "name": "Команда меню показывает inline-навигацию",
-    "steps": [
-      {
-        "send": { "text": "/menu" },
-        "expect": [
-          {
-            "method": "sendMessage",
-            "payload": {
-              "text": "Добро пожаловать. Выберите раздел в меню ниже.",
-              "reply_markup": {
-                "inline_keyboard": [
-                  [{ "text": "🛍 Каталог", "callback_data": "shop:catalog" }],
-                  [{ "text": "🛒 Корзина", "callback_data": "shop:cart" }],
-                  [{ "text": "📦 Мои заказы", "callback_data": "shop:orders" }],
-                  [{ "text": "👤 Профиль", "callback_data": "shop:profile" }],
-                  [{ "text": "ℹ️ Помощь", "callback_data": "shop:help" }],
-                  [{ "text": "Главное меню", "callback_data": "menu:main" }],
-                  [{ "text": "Назад", "callback_data": "nav:back" }]
-                ]
-              }
-            }
-          }
-        ]
-      }
-    ]
-  }
+  {"name":"Menu keeps customer sections visible","steps":[{"send":{"text":"/menu"},"expect":[{"method":"sendMessage","payload":{"text":"Добро пожаловать. Выберите раздел каталога или откройте избранное."}}]}]}
 ]

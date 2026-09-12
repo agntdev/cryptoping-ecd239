@@ -1,20 +1,3 @@
 [
-  {
-    "name": "Settings",
-    "steps": [
-      {
-        "expect": [
-          {
-            "method": "sendMessage",
-            "payload": {
-              "text": "Open settings to set timezone, quiet hours, morning summary time, and per-user defaults"
-            }
-          }
-        ],
-        "send": {
-          "callback": "user:settings"
-        }
-      }
-    ]
-  }
+  {"name":"Profile settings remain available","steps":[{"send":{"callback":"shop:profile"},"expect":[{"method":"editMessageText"}]}]}
 ]

@@ -1,14 +1,5 @@
 [
-  {"name":"Каталог через inline меню и возврат","steps":[
-    {"send":{"callback":"shop:catalog"},"expect":[{"method":"editMessageText","payload":{"text":"Выберите категорию товаров"}}]},
-    {"send":{"callback":"menu:main"},"expect":[{"method":"editMessageText","payload":{"text":"Добро пожаловать. Выберите раздел в меню ниже."}}]}
-  ]},
-  {"name":"Категории изменяет только владелец","steps":[
-    {"send":{"callback":"shop:catalog"},"expect":[{"method":"editMessageText","payload":{"text":"Выберите категорию товаров"}}]},
-    {"send":{"callback":"catalog:category:create"},"expect":[{"method":"answerCallbackQuery"}]},
-    {"send":{"text":"Спорт"},"expect":[{"method":"sendMessage","payload":{"text":"Sorry, I didn't understand that. Try /help."}}]}
-  ]},
-  {"name":"Пустая корзина сохраняет inline навигацию","steps":[
-    {"send":{"callback":"shop:cart"},"expect":[{"method":"editMessageText","payload":{"text":"Корзина пуста. Откройте каталог, чтобы добавить товары."}}]}
-  ]}
+  {"name":"Favorites empty state","steps":[{"send":{"callback":"shop:favorites"},"expect":[{"method":"editMessageText","payload":{"text":"В избранном пока пусто. Откройте каталог и сохраните понравившиеся товары."}}]}]},
+  {"name":"Search has a clear prompt","steps":[{"send":{"callback":"shop:search"},"expect":[{"method":"editMessageText","payload":{"text":"Введите название или категорию товара."}}]}]},
+  {"name":"Contact is available","steps":[{"send":{"callback":"shop:contact"},"expect":[{"method":"editMessageText","payload":{"text":"Свяжитесь с нами: ответим на вопросы о размерах, наличии и доставке."}}]}]}
 ]

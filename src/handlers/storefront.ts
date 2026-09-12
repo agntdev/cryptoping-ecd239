@@ -1,7 +1,7 @@
 import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
 import { inlineButton, inlineKeyboard } from "../toolkit/index.js";
-import { addToCart, changeCartQuantity, clearCart, getCatalogCategory, getCatalogProduct, getProfile, getUserOrder, listCatalogCategories, listCatalogProducts, listUserOrders, removeFromCart, snapshot, updateProfile, userId } from "../store.js";
+import { addToCart, changeCartQuantity, clearCart, getCatalogCategory, getCatalogProduct, getProfile, getUserOrder, listCatalogCategories, listCatalogProducts, listFavorites, listUserOrders, removeFromCart, searchCatalogProducts, snapshot, toggleFavorite, updateProfile, userId } from "../store.js";
 import { formatPrice } from "../locale.js";
 import { force, menuKeyboard } from "../storefront.js";
 import { showMenu as showPersistentMenu } from "../menu-state.js";
@@ -10,12 +10,14 @@ const composer = new Composer<Ctx>();
 
 function homeMarkup(ctx: Ctx) { return { reply_markup: menuKeyboard(ctx) }; }
 
+const PAGE_SIZE = 3;
+const nav = (rows: ReturnType<typeof inlineButton>[][] = []) => inlineKeyboard([...rows, [inlineButton("Назад", "nav:back"), inlineButton("Главное меню", "menu:main")]]);
+
 async function catalog(ctx: Ctx) {
   ctx.session.flow = { kind: "catalog" };
   const categories = await listCatalogCategories();
   const rows = categories.map((category) => [inlineButton(category.name, "catalog:category:" + category.id)]);
-  rows.push([inlineButton("⬅️ Назад", "menu:main")]);
-  await showPersistentMenu(ctx, { text: "Выберите категорию товаров", markup: inlineKeyboard(rows) });
+  await showPersistentMenu(ctx, { text: "Выберите раздел каталога.", markup: nav(rows) });
 }
 
 async function category(ctx: Ctx, categoryId: string) {
@@ -24,21 +26,30 @@ async function category(ctx: Ctx, categoryId: string) {
     await catalog(ctx);
     return;
   }
-  ctx.session.flow = { kind: "category", categoryId: selected.id };
-  await productList(ctx, selected.id);
+  const children = await listCatalogCategories(selected.id);
+  if (children.length) {
+    ctx.session.flow = { kind: "category", categoryId: selected.id };
+    await showPersistentMenu(ctx, { text: "Выберите подраздел.", markup: nav(children.map((child) => [inlineButton(child.name, "catalog:subcategory:" + child.id)])) });
+    return;
+  }
+  await productList(ctx, selected.id, 0, selected.parentId);
 }
 
 function productPrice(product: { price: number; currency: string }) {
   return new Intl.NumberFormat("ru-RU", { style: "currency", currency: product.currency }).format(product.price);
 }
 
-async function productList(ctx: Ctx, categoryId: string) {
+async function productList(ctx: Ctx, categoryId: string, page = 0, parentId?: string) {
   const selected = await getCatalogCategory(categoryId);
   if (!selected) return catalog(ctx);
   const products = await listCatalogProducts(categoryId);
-  const rows = [[inlineButton("⬅️ Назад", "catalog:back:" + categoryId)]];
-  await showPersistentMenu(ctx, { text: products.length ? "Товары в категории «" + selected.name + "»" : "В этой категории пока нет товаров.", markup: inlineKeyboard(rows) });
-  for (const product of products) {
+  const pages = Math.max(1, Math.ceil(products.length / PAGE_SIZE));
+  const current = Math.min(Math.max(page, 0), pages - 1);
+  const visible = products.slice(current * PAGE_SIZE, (current + 1) * PAGE_SIZE);
+  const rows = visible.map((product) => [inlineButton(product.name, "catalog:product:view:" + product.id)]);
+  if (current > 0 || current < pages - 1) rows.push([...(current > 0 ? [inlineButton("Предыдущая", "catalog:page:" + categoryId + ":" + (current - 1))] : []), ...(current < pages - 1 ? [inlineButton("Следующая", "catalog:page:" + categoryId + ":" + (current + 1))] : [])]);
+  await showPersistentMenu(ctx, { text: products.length ? "Товары · страница " + (current + 1) + " из " + pages : "В этом разделе пока нет товаров.", markup: nav(rows) });
+  for (const product of visible) {
     const caption = product.name + "\n" + productPrice(product) + "\n" + (product.availability === "in_stock" ? "В наличии" : "Нет в наличии");
     if (product.photo) await ctx.replyWithPhoto(product.photo, { caption, reply_markup: inlineKeyboard([[inlineButton(product.name, "catalog:product:view:" + product.id)]]) });
     else await ctx.reply(caption, { reply_markup: inlineKeyboard([[inlineButton(product.name, "catalog:product:view:" + product.id)]]) });
@@ -48,11 +59,10 @@ async function productList(ctx: Ctx, categoryId: string) {
 async function productDetail(ctx: Ctx, productId: string) {
   const product = await getCatalogProduct(productId);
   if (!product) return ctx.reply("Товар больше недоступен.");
-  const caption = (product.photo ? "" : "Фото: нет\n\n") + product.name + "\n\n" + product.description + "\n\nЦена: " + productPrice(product) + "\nСтатус: " + (product.availability === "in_stock" ? "В наличии" : "Нет в наличии");
+  const caption = product.name + "\n\n" + product.description + "\n\nЦена: " + productPrice(product) + "\nРазмеры: " + (product.sizes?.join(", ") ?? "уточняются") + "\nЦвета: " + (product.colors?.join(", ") ?? "уточняются");
   const controls = inlineKeyboard([
-    [inlineButton("🛒 Добавить в корзину", "catalog:cart:add:" + product.id)],
-    [inlineButton("🛒 Открыть корзину", "shop:cart:from:" + product.id)],
-    [inlineButton("⬅️ Назад", "catalog:products:" + product.categoryId)],
+    [inlineButton("Сохранить", "catalog:favorite:" + product.id), inlineButton("🛒 В корзину", "catalog:cart:add:" + product.id)],
+    [inlineButton("Назад", "catalog:products:" + product.categoryId), inlineButton("Главное меню", "menu:main")],
   ]);
   if (product.photo) await ctx.replyWithPhoto(product.photo, { caption, reply_markup: controls });
   else await ctx.reply(caption, { reply_markup: controls });
@@ -131,7 +141,7 @@ async function help(ctx: Ctx) {
 
 composer.on("message:text", async (ctx, next) => {
   const text = ctx.message.text.trim();
-  if (text === "🛍 Каталог") return catalog(ctx);
+  if (text === "🛍 Каталог" || text === "Каталог") return catalog(ctx);
   const flow = ctx.session.flow;
   if (text === "⬅️ Назад") {
     if (flow?.kind === "category") return catalog(ctx);
@@ -139,8 +149,14 @@ composer.on("message:text", async (ctx, next) => {
     return ctx.reply("Добро пожаловать. Выберите раздел в меню ниже.", homeMarkup(ctx));
   }
   if (flow?.kind === "catalog") {
-    const selected = (await listCatalogCategories()).find((entry) => entry.name === text);
+    const selected = (await snapshot()).categories.find((entry) => entry.name === text);
     if (selected) return category(ctx, selected.id);
+  }
+  if (flow?.kind === "search") {
+    const results = await searchCatalogProducts(text);
+    ctx.session.flow = { kind: "search", query: text, page: 0 };
+    const rows = results.slice(0, PAGE_SIZE).map((product) => [inlineButton(product.name, "catalog:product:view:" + product.id)]);
+    return showPersistentMenu(ctx, { text: results.length ? "Результаты поиска" : "Ничего не нашли. Попробуйте другой запрос.", markup: nav(rows) });
   }
   if (text === "🛒 Корзина") return cart(ctx);
   if (text === "📦 Мои заказы") return orders(ctx);
@@ -155,6 +171,9 @@ composer.on("message:text", async (ctx, next) => {
 });
 
 composer.callbackQuery("shop:catalog", async (ctx) => { await ctx.answerCallbackQuery(); await catalog(ctx); });
+composer.callbackQuery("shop:search", async (ctx) => { await ctx.answerCallbackQuery(); ctx.session.flow = { kind: "search", query: "" }; await showPersistentMenu(ctx, { text: "Введите название или категорию товара.", markup: nav() }); });
+composer.callbackQuery("shop:contact", async (ctx) => { await ctx.answerCallbackQuery(); await showPersistentMenu(ctx, { text: "Свяжитесь с нами: ответим на вопросы о размерах, наличии и доставке.", markup: nav() }); });
+composer.callbackQuery("shop:favorites", async (ctx) => { await ctx.answerCallbackQuery(); const items = await listFavorites(ctx); const rows = items.map((product) => [inlineButton(product.name, "catalog:product:view:" + product.id), inlineButton("Удалить", "catalog:favorite:remove:" + product.id)]); await showPersistentMenu(ctx, { text: items.length ? "Ваши сохранённые товары." : "В избранном пока пусто. Откройте каталог и сохраните понравившиеся товары.", markup: nav(rows) }); });
 composer.callbackQuery("shop:cart", async (ctx) => { await ctx.answerCallbackQuery(); ctx.session.flow = { kind: "cart" }; await cart(ctx); });
 composer.callbackQuery(/^shop:cart:from:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); const product = await getCatalogProduct(ctx.match[1]); ctx.session.flow = { kind: "cart", returnProductId: product?.id, returnCategoryId: product?.categoryId }; await cart(ctx); });
 composer.callbackQuery("shop:orders", async (ctx) => { await ctx.answerCallbackQuery(); await orders(ctx); });
@@ -170,7 +189,10 @@ composer.callbackQuery("shop:clear", async (ctx) => { await ctx.answerCallbackQu
 composer.callbackQuery(/^catalog:product:view:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await productDetail(ctx, ctx.match[1]); });
 composer.callbackQuery(/^catalog:back:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await catalog(ctx); });
 composer.callbackQuery(/^catalog:category:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await category(ctx, ctx.match[1]); });
-composer.callbackQuery(/^catalog:products:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await productList(ctx, ctx.match[1]); });
+composer.callbackQuery(/^catalog:subcategory:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); const selected = await getCatalogCategory(ctx.match[1]); if (!selected) return catalog(ctx); await productList(ctx, selected.id, 0, selected.parentId); });
+composer.callbackQuery(/^catalog:page:(.+):(\d+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await productList(ctx, ctx.match[1], Number(ctx.match[2])); });
+composer.callbackQuery(/^catalog:products:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await productList(ctx, ctx.match[1], 0); });
+composer.callbackQuery(/^catalog:favorite:(remove:)?(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); const productId = ctx.match[2]; await toggleFavorite(ctx, productId); if (ctx.match[1]) { const items = await listFavorites(ctx); const rows = items.map((product) => [inlineButton(product.name, "catalog:product:view:" + product.id), inlineButton("Удалить", "catalog:favorite:remove:" + product.id)]); return showPersistentMenu(ctx, { text: items.length ? "Ваши сохранённые товары." : "В избранном пока пусто. Откройте каталог и сохраните понравившиеся товары.", markup: nav(rows) }); } await productDetail(ctx, productId); });
 composer.callbackQuery(/^profile:field:(name|phone|city|address)$/, async (ctx) => {
   await ctx.answerCallbackQuery();
   const p = await getProfile(ctx);
