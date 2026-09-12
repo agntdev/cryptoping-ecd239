@@ -7,7 +7,8 @@
       {"send":{"text":"Иван Петров"},"expect":[{"method":"sendMessage","payload":{"text":"Введите номер телефона."}}]},
       {"send":{"text":"+7 900 123-45-67"},"expect":[{"method":"sendMessage","payload":{"text":"Введите город доставки."}}]},
       {"send":{"text":"Москва"},"expect":[{"method":"sendMessage","payload":{"text":"Введите адрес доставки."}}]},
-      {"send":{"text":"ул. Тверская, 1"},"expect":[{"method":"sendMessage","payload":{"reply_markup":{"inline_keyboard":[[{"text":"✅ Подтвердить заказ","callback_data":"checkout:confirm"}],[{"text":"✏️ Изменить данные","callback_data":"checkout:edit"}],[{"text":"❌ Отменить","callback_data":"checkout:cancel"}]]}}}]},
+      {"send":{"text":"ул. Тверская, 1"},"expect":[{"method":"sendMessage","payload":{"text":"Выберите способ оплаты.","reply_markup":{"inline_keyboard":[[{"text":"💳 Оплата картой","callback_data":"checkout:payment:card"}],[{"text":"💵 Наличными при получении","callback_data":"checkout:payment:cash_on_delivery"}],[{"text":"❌ Отменить","callback_data":"checkout:cancel"}]]}}}]},
+      {"send":{"callback":"checkout:payment:card"},"expect":[{"method":"sendMessage","payload":{"reply_markup":{"inline_keyboard":[[{"text":"✅ Подтвердить заказ","callback_data":"checkout:confirm"}],[{"text":"✏️ Изменить данные","callback_data":"checkout:edit"}],[{"text":"❌ Отменить","callback_data":"checkout:cancel"}]]}}}]},
       {"send":{"callback":"checkout:confirm"},"expect":[{"method":"sendMessage"}]}
     ]
   },
@@ -19,7 +20,8 @@
       {"send":{"text":"Анна Смирнова"},"expect":[{"method":"sendMessage","payload":{"text":"Введите номер телефона."}}]},
       {"send":{"text":"+7 901 000-00-00"},"expect":[{"method":"sendMessage","payload":{"text":"Введите город доставки."}}]},
       {"send":{"text":"Казань"},"expect":[{"method":"sendMessage","payload":{"text":"Введите адрес доставки."}}]},
-      {"send":{"text":"ул. Баумана, 2"},"expect":[{"method":"sendMessage"}]},
+      {"send":{"text":"ул. Баумана, 2"},"expect":[{"method":"sendMessage","payload":{"text":"Выберите способ оплаты."}}]},
+      {"send":{"callback":"checkout:payment:cash_on_delivery"},"expect":[{"method":"sendMessage","payload":{"reply_markup":{"inline_keyboard":[[{"text":"✅ Подтвердить заказ","callback_data":"checkout:confirm"}],[{"text":"✏️ Изменить данные","callback_data":"checkout:edit"}],[{"text":"❌ Отменить","callback_data":"checkout:cancel"}]]}}}]},
       {"send":{"callback":"checkout:edit"},"expect":[{"method":"sendMessage","payload":{"text":"Выберите данные для изменения."}}]},
       {"send":{"callback":"checkout:edit:city"},"expect":[{"method":"sendMessage","payload":{"text":"Введите город доставки."}}]},
       {"send":{"text":"Самара"},"expect":[{"method":"sendMessage"}]}
