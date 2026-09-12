@@ -1,14 +1,14 @@
-import { inlineButton, inlineKeyboard, registerMainMenuItem } from "./toolkit/index.js";
+import { inlineButton, inlineKeyboard, registerMainMenuItem, isOwner } from "./toolkit/index.js";
+type MenuContext = { env?: Record<string, unknown> | null; from?: { id: number }; chat?: { id: number } };
 
 /** All navigation is in-chat. No persistent reply keyboard is used. */
-export const menuKeyboard = () => inlineKeyboard([
+export const menuKeyboard = (ctx?: MenuContext) => inlineKeyboard([
   [inlineButton("🛍 Каталог", "shop:catalog")],
   [inlineButton("🛒 Корзина", "shop:cart")],
-  [inlineButton("Список наблюдения", "watchlist:view")],
-  [inlineButton("Оповещения", "alerts:menu")],
-  [inlineButton("Проверить цену", "price:menu")],
-  [inlineButton("Настройки", "user:settings")],
+  [inlineButton("📦 Мои заказы", "shop:orders")],
   [inlineButton("👤 Профиль", "shop:profile")],
+  [inlineButton("ℹ️ Помощь", "shop:help")],
+  ...(ctx && isOwner(ctx) ? [[inlineButton("⚙️ Админ-панель", "admin:panel")]] : []),
 ]);
 registerMainMenuItem({ label: "🛍 Каталог", data: "shop:catalog", order: 10 });
 export const back = inlineKeyboard([[inlineButton("В главное меню", "menu:main")]]);

@@ -6,10 +6,10 @@ import { requireOwner } from "../toolkit/index.js";
 import { orderDetail } from "./orders.js";
 const composer = new Composer<Ctx>();
 const WELCOME = "Добро пожаловать. Выберите раздел в меню ниже.";
-async function showMenu(ctx: Ctx, edit: boolean) {
+export async function showMenu(ctx: Ctx, edit: boolean) {
   await touch(ctx);
-  if (edit) await ctx.editMessageText(WELCOME, { reply_markup: menuKeyboard() });
-  else await ctx.reply(WELCOME, { reply_markup: menuKeyboard() });
+  if (edit) await ctx.editMessageText(WELCOME, { reply_markup: menuKeyboard(ctx) });
+  else await ctx.reply(WELCOME, { reply_markup: menuKeyboard(ctx) });
 }
 composer.command("start", async (ctx) => {
   const payload = ctx.match.trim();

@@ -1,0 +1,21 @@
+[
+  {
+    "name": "Админ-панель закрыта без владельца",
+    "steps": [
+      {
+        "send": { "callback": "admin:panel" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          { "method": "sendMessage", "payload": { "text": "Доступ владельца ещё не настроен." } }
+        ]
+      },
+      {
+        "send": { "callback": "admin:categories" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          { "method": "sendMessage", "payload": { "text": "Доступ владельца ещё не настроен." } }
+        ]
+      }
+    ]
+  }
+]
