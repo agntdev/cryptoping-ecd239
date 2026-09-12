@@ -158,11 +158,33 @@ export async function createOrderFromCheckout(ctx: Ctx, customer: CustomerData) 
     const existing = s.orders[uid] ?? (s.orders[uid] = []);
     let id = `ORD-${stamp}`;
     let suffix = 2;
-    while (existing.some((order) => order.id === id)) id = `ORD-${stamp}-${suffix++}`;
+    const allOrders = Object.values(s.orders).flat();
+    while (allOrders.some((order) => order.id === id)) id = `ORD-${stamp}-${suffix++}`;
     const order: Order = { id, userId: uid, createdAt, lines, totalAmount: lines.reduce((sum, line) => sum + line.subtotal, 0), currency: products.get(lines[0].productId)!.currency, customer, status: "pending" };
     existing.push(order);
     s.carts[uid] = [];
     delete s.checkoutDrafts[uid];
     return order;
   });
+}
+
+/** Orders are read through the persisted user-to-orders index, never a key scan. */
+export async function listOrders(page = 0, pageSize = 10) {
+  const state = await snapshot();
+  const orders = Object.values(state.orders)
+    .flat()
+    .sort((a, b) => b.createdAt - a.createdAt);
+  const size = Math.max(1, Math.min(50, Math.trunc(pageSize)));
+  const pages = Math.max(1, Math.ceil(orders.length / size));
+  const current = Math.min(Math.max(0, Math.trunc(page)), pages - 1);
+  return { orders: orders.slice(current * size, (current + 1) * size), total: orders.length, page: current, pages, pageSize: size };
+}
+
+export async function getOrder(orderId: string) {
+  const state = await snapshot();
+  for (const orders of Object.values(state.orders)) {
+    const order = orders.find((entry) => entry.id === orderId);
+    if (order) return order;
+  }
+  return undefined;
 }

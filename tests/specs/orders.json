@@ -1,0 +1,28 @@
+[
+  {
+    "name": "Заказы закрыты без владельца",
+    "steps": [
+      {
+        "send": {"callback": "admin:orders"},
+        "expect": [
+          {"method": "answerCallbackQuery"},
+          {"method": "sendMessage", "payload": {"text": "Доступ владельца ещё не настроен."}}
+        ]
+      },
+      {
+        "send": {"callback": "admin:orders:page:1"},
+        "expect": [
+          {"method": "answerCallbackQuery"},
+          {"method": "sendMessage", "payload": {"text": "Доступ владельца ещё не настроен."}}
+        ]
+      },
+      {
+        "send": {"callback": "admin:order:view:ORD-20260912"},
+        "expect": [
+          {"method": "answerCallbackQuery"},
+          {"method": "sendMessage", "payload": {"text": "Доступ владельца ещё не настроен."}}
+        ]
+      }
+    ]
+  }
+]

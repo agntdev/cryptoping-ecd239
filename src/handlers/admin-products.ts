@@ -48,7 +48,7 @@ async function productAdminList(ctx: Ctx, page = 0, edit = false) {
   const nav = [] as ReturnType<typeof inlineButton>[][];
   if (current > 0) nav.push([inlineButton("‹ Назад", `admin:products:page:${current - 1}`)]);
   if (current < pages - 1) nav.push([inlineButton("Вперёд ›", `admin:products:page:${current + 1}`)]);
-  nav.push([inlineButton("Создать товар", "admin:product:create")]);
+  nav.push([inlineButton("Создать товар", "admin:product:create"), inlineButton("📦 Заказы", "admin:orders")]);
   if (edit && ctx.callbackQuery) await ctx.editMessageText(text, { reply_markup: inlineKeyboard(nav) });
   else await ctx.reply(text, { reply_markup: inlineKeyboard(nav) });
   for (const product of visible) {
