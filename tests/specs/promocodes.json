@@ -1,0 +1,9 @@
+[
+  {
+    "name": "Раздел промокодов закрыт без владельца",
+    "steps": [
+      {"send":{"callback":"admin:promos"},"expect":[{"method":"answerCallbackQuery"},{"method":"sendMessage","payload":{"text":"Доступ владельца ещё не настроен."}}]},
+      {"send":{"callback":"admin:promo:create"},"expect":[{"method":"answerCallbackQuery"},{"method":"sendMessage","payload":{"text":"Доступ владельца ещё не настроен."}}]}
+    ]
+  }
+]

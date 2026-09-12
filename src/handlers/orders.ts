@@ -39,7 +39,7 @@ async function ordersList(ctx: Ctx, page = 0) {
   await ctx.reply(text, { reply_markup: inlineKeyboard(rows) });
   for (const order of result.orders) {
     await ctx.reply(
-      `${order.id}\n${order.status}\n${dateTime(order.createdAt)}\n${order.customer.name}\n${order.customer.phone}\n${order.customer.city}\n${order.customer.address}\n${order.delivery_method?.label ?? "🚚 Доставка по адресу"}\nИтого: ${formatPrice(order.totalAmount, order.currency)}`,
+      `${order.id}\n${order.status}\n${dateTime(order.createdAt)}\n${order.customer.name}\n${order.customer.phone}\n${order.customer.city}\n${order.customer.address}\n${order.delivery_method?.label ?? "🚚 Доставка по адресу"}\n${order.appliedPromoCode ? `Промокод: ${order.appliedPromoCode} (-${order.appliedDiscountPercent}%, ${formatPrice(order.discountAmount ?? 0, order.currency)})\n` : ""}Итого: ${formatPrice(order.finalTotal ?? order.totalAmount, order.currency)}`,
       { reply_markup: inlineKeyboard([[inlineButton("Открыть заказ", `admin:order:view:${order.id}`)]]) },
     );
   }
@@ -65,7 +65,8 @@ async function orderDetail(ctx: Ctx, orderId: string) {
     "Товары:",
     ...lines,
     "",
-    `Итого: ${formatPrice(order.totalAmount, order.currency)}`,
+    ...(order.appliedPromoCode ? [`Промокод: ${order.appliedPromoCode}`, `Скидка: ${order.appliedDiscountPercent}% · ${formatPrice(order.discountAmount ?? 0, order.currency)}`] : []),
+    `Итого: ${formatPrice(order.finalTotal ?? order.totalAmount, order.currency)}`,
   ].join("\n");
   const statusButtons = ORDER_STATUSES.map((status) => [inlineButton(status, `admin:order:status:${order.id}:${ORDER_STATUSES.indexOf(status)}`)]);
   await ctx.reply(text, { reply_markup: inlineKeyboard([...statusButtons, [inlineButton("⬅️ К заказам", "admin:orders")]]) });
