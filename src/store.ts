@@ -2,11 +2,6 @@ import type { Ctx } from "./bot.js";
 import type { StorageAdapter } from "grammy";
 
 export type Flow =
-  | { kind: "add" }
-  | { kind: "edit"; itemId: string }
-  | { kind: "price"; itemId: string }
-  | { kind: "percent"; itemId: string; percent?: number; window?: string }
-  | { kind: "settings"; step: "timezone" | "quiet" | "summary" | "cooldown" }
   | { kind: "profile"; field?: "name" | "phone" | "city" | "address"; draft: { name?: string; phone?: string; city?: string; address?: string } }
   | { kind: "catalog" }
   | { kind: "category"; categoryId: string }
@@ -19,8 +14,7 @@ export type Flow =
   | { kind: "product-edit"; productId: string; categoryId: string; step: "name" | "photo" | "description" | "price" | "availability" | "field"; field?: "name" | "photo" | "description" | "price" | "availability" | "category"; name?: string; photo?: string; description?: string; price?: number; availability?: "in_stock" | "out_of_stock"; stockCount?: number }
   | undefined;
 
-export interface Profile { id: string; timezone: string; fiat: string; quietStart?: string; quietEnd?: string; morning: boolean; summaryTime?: string; cooldown: number; hysteresis: number; lastSeen: number; name?: string; phone?: string; city?: string; address?: string; email?: string; }
-export interface Item { id: string; ticker: string; name: string; addedAt: number; lastPrice?: number; }
+export interface Profile { id: string; lastSeen: number; name?: string; phone?: string; city?: string; address?: string; email?: string; }
 export interface CatalogProduct { id: string; categoryId: string; name: string; photo?: string; price: number; currency: string; description: string; availability: "in_stock" | "out_of_stock"; stockCount?: number; createdAt: number; updatedAt: number; }
 export interface CatalogCategory { id: string; name: string; }
 export interface CartLine { productId: string; quantity: number; unitPrice?: number; catalogUpdatedAt?: number; }
@@ -60,14 +54,12 @@ function normalizeOrderStatus(status: unknown): OrderStatus {
 export interface CheckoutDraft { name?: string; phone?: string; city?: string; address?: string; delivery_method?: DeliveryMethod; payment_method?: PaymentMethod; promoCode?: string; appliedPromoCodeId?: string; itemsSubtotal?: number; appliedDiscountPercent?: number; discountAmount?: number; finalTotal?: number; updatedAt: number; }
 /** Prevent accidental or malicious cart totals from becoming unmanageable. */
 export const MAX_CART_QUANTITY = 99;
-export interface Alert { id: string; itemId: string; type: "threshold" | "percent"; price?: number; direction?: "above" | "below"; percent?: number; window?: string; baseline?: number; createdAt: number; lastTriggered?: number; cooldownHours: number; enabled: boolean; }
-export interface Queued { id: string; itemId: string; ticker: string; detectedAt: number; note: string; }
-export interface State { version: 1; users: Record<string, Profile>; items: Record<string, Item[]>; alerts: Record<string, Alert[]>; queued: Record<string, Queued[]>; catalog: CatalogProduct[]; categories: CatalogCategory[]; carts: Record<string, CartLine[]>; orders: Record<string, Order[]>; promoCodes: PromoCode[]; checkoutDrafts: Record<string, CheckoutDraft>; metrics: { triggers: Record<string, number>; errors: number }; config: { cooldown: number; hysteresis: number; percentWindow: string; topN: number }; }
+export interface State { version: 2; users: Record<string, Profile>; catalog: CatalogProduct[]; categories: CatalogCategory[]; carts: Record<string, CartLine[]>; orders: Record<string, Order[]>; promoCodes: PromoCode[]; checkoutDrafts: Record<string, CheckoutDraft>; }
 
 let adapter: StorageAdapter<unknown> | undefined;
 let clock = () => Date.now();
 let queue: Promise<unknown> = Promise.resolve();
-const KEY = "cryptowatch:state:v1";
+const KEY = "storefront:state:v2";
 const initialCategories: CatalogCategory[] = [
   { id: "electronics", name: "Электроника" },
   { id: "clothing", name: "Одежда" },
@@ -80,7 +72,7 @@ const initialProducts: CatalogProduct[] = [
   { id: "books:design-book", categoryId: "books", name: "Книга о дизайне", photo: "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=640", description: "Практическое введение в принципы дизайна.", price: 1290, currency: "RUB", availability: "out_of_stock", createdAt: 0, updatedAt: 0 },
   { id: "home-and-garden:planter", categoryId: "home-and-garden", name: "Керамическое кашпо", photo: "https://images.unsplash.com/photo-1485955900006-10f4d324d411?w=640", description: "Керамическое кашпо для домашних растений.", price: 1890, currency: "RUB", availability: "in_stock", createdAt: 0, updatedAt: 0 },
 ];
-const empty = (): State => ({ version: 1, users: {}, items: {}, alerts: {}, queued: {}, catalog: initialProducts.map((product) => ({ ...product })), categories: initialCategories.map((category) => ({ ...category })), carts: {}, orders: {}, promoCodes: [], checkoutDrafts: {}, metrics: { triggers: {}, errors: 0 }, config: { cooldown: 6, hysteresis: 0.5, percentWindow: "1h", topN: 10 } });
+const empty = (): State => ({ version: 2, users: {}, catalog: initialProducts.map((product) => ({ ...product })), categories: initialCategories.map((category) => ({ ...category })), carts: {}, orders: {}, promoCodes: [], checkoutDrafts: {} });
 export const now = () => clock();
 export function setClockForTests(fn?: () => number) { clock = fn ?? (() => Date.now()); }
 export function configureDomainStore(next: StorageAdapter<unknown>) { adapter = next; }
@@ -97,23 +89,16 @@ async function read() {
       finalTotal: order.finalTotal ?? order.totalAmount,
     })),
   ]));
-  return { ...empty(), ...saved, catalog, categories: saved.categories ?? empty().categories, carts: saved.carts ?? {}, orders, promoCodes: saved.promoCodes ?? [], checkoutDrafts: saved.checkoutDrafts ?? {}, metrics: { ...empty().metrics, ...saved.metrics }, config: { ...empty().config, ...saved.config } } as State;
+  return { ...empty(), catalog, categories: saved.categories ?? empty().categories, carts: saved.carts ?? {}, orders, promoCodes: saved.promoCodes ?? [], checkoutDrafts: saved.checkoutDrafts ?? {}, users: Object.fromEntries(Object.entries(saved.users ?? {}).map(([id, profile]) => [id, { id, lastSeen: profile?.lastSeen ?? 0, name: profile?.name, phone: profile?.phone, city: profile?.city, address: profile?.address, email: profile?.email }])) } as State;
 }
 async function write(s: State) { if (!adapter) throw new Error("Store is not configured"); await adapter.write(KEY, s); }
 export async function transaction<T>(fn: (s: State) => T | Promise<T>): Promise<T> { const run = queue.then(async () => { const s = await read(); const result = await fn(s); await write(s); return result; }); queue = run.then(() => undefined, () => undefined); return run; }
 export async function snapshot() { return read(); }
 export function userId(ctx: Ctx) { return String(ctx.from?.id ?? ctx.chat?.id ?? "unknown"); }
-const newProfile = (id: string): Profile => ({ id, timezone: "UTC", fiat: "USD", morning: false, cooldown: 6, hysteresis: 0.5, lastSeen: now() });
+const newProfile = (id: string): Profile => ({ id, lastSeen: now() });
 export async function getProfile(ctx: Ctx) { return transaction((s) => { const id = userId(ctx); return s.users[id] ?? (s.users[id] = newProfile(id)); }); }
 export async function touch(ctx: Ctx) { return transaction((s) => { const p = s.users[userId(ctx)] ?? (s.users[userId(ctx)] = newProfile(userId(ctx))); p.lastSeen = now(); return p; }); }
-export async function addItem(ctx: Ctx, item: Omit<Item, "id" | "addedAt">) { return transaction((s) => { const uid = userId(ctx); const list = s.items[uid] ?? (s.items[uid] = []); const found = list.find((x) => x.ticker === item.ticker); if (found) return { item: found, existed: true }; const saved = { ...item, id: `${uid}:${item.ticker}`, addedAt: now() }; list.push(saved); return { item: saved, existed: false }; }); }
-export async function removeItem(ctx: Ctx, id: string) { return transaction((s) => { const uid = userId(ctx); const list = s.items[uid] ?? []; const item = list.find((x) => x.id === id); if (!item) return false; s.items[uid] = list.filter((x) => x.id !== id); s.alerts[uid] = (s.alerts[uid] ?? []).filter((a) => a.itemId !== id); return true; }); }
-export async function renameItem(ctx: Ctx, id: string, ticker: string, name: string, price: number) { return transaction((s) => { const item = (s.items[userId(ctx)] ?? []).find((x) => x.id === id); if (!item) return false; item.ticker = ticker; item.name = name; item.lastPrice = price; return true; }); }
-export async function saveAlert(ctx: Ctx, alert: Omit<Alert, "id" | "createdAt" | "enabled">) { return transaction((s) => { const uid = userId(ctx); const saved = { ...alert, id: `${uid}:${now()}:${(s.alerts[uid] ?? []).length}`, createdAt: now(), cooldownHours: alert.cooldownHours ?? s.users[uid]?.cooldown ?? s.config.cooldown, enabled: true }; (s.alerts[uid] ?? (s.alerts[uid] = [])).push(saved); return saved; }); }
 export async function updateProfile(ctx: Ctx, patch: Partial<Profile>) { return transaction((s) => { const id = userId(ctx); const p = s.users[id] ?? (s.users[id] = newProfile(id)); Object.assign(p, patch, { lastSeen: now() }); return p; }); }
-export async function queueAlert(ctx: Ctx, q: Omit<Queued, "detectedAt">) { return transaction((s) => { (s.queued[userId(ctx)] ?? (s.queued[userId(ctx)] = [])).push({ ...q, detectedAt: now() }); }); }
-export async function takeQueued(ctx: Ctx) { return transaction((s) => { const q = s.queued[userId(ctx)] ?? []; s.queued[userId(ctx)] = []; return q; }); }
-export async function incrementTrigger(ticker: string) { return transaction((s) => { s.metrics.triggers[ticker] = (s.metrics.triggers[ticker] ?? 0) + 1; }); }
 
 /** Hook for a future catalog service or owner import. Products are durable. */
 export async function addCatalogProduct(product: CatalogProduct) { return transaction((s) => { const index = s.catalog.findIndex((entry) => entry.id === product.id); if (index >= 0) s.catalog[index] = product; else s.catalog.push(product); return product; }); }

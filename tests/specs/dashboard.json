@@ -1,1 +1,0 @@
-[{"name":"Доступ владельца не настроен","steps":[{"send":{"text":"/dashboard"},"expect":[{"method":"sendMessage","payload":{"text":"Доступ владельца ещё не настроен."}}]}]}]
