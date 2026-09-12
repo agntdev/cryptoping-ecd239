@@ -265,16 +265,28 @@ composer.on("message:text", async (ctx, next) => {
     const result = await applyPromoCode(ctx, value);
     if (result.status === "invalid") return ctx.reply("Промокод недействителен или отключён.");
     if (result.status === "already") return ctx.reply("Этот промокод уже применён к заказу.");
-    const draft = result.draft;
-    const percent = draft.appliedDiscountPercent ?? 0;
-    const discount = draft.discountAmount ?? 0;
-    const total = draft.finalTotal ?? 0;
-    ctx.session.flow = { kind: "checkout", step: "summary" };
-    await ctx.reply(`Промокод применён: -${percent}% (-${formatPrice(discount, "RUB")}): новый итог ${formatPrice(total, "RUB")}.`, { reply_markup: inlineKeyboard([[inlineButton("Продолжить оформление", "checkout:edit")]]) });
-    return;
+    await ctx.reply("Промокод применён. Проверьте обновлённый итог ниже.");
+    return summary(ctx);
   }
   if (flow.step === "delivery") {
     await deliveryPrompt(ctx);
+    return;
+  }
+  const limits: Record<"name" | "phone" | "city" | "address", number> = { name: 100, phone: 30, city: 100, address: 200 };
+  if (flow.step === "name" && value.length < 2) {
+    await ctx.reply("Введите имя и фамилию.", { reply_markup: inlineKeyboard([[inlineButton("❌ Отменить", "checkout:cancel")]]) });
+    return;
+  }
+  if (value.length > limits[flow.step as "name" | "phone" | "city" | "address"]) {
+    await ctx.reply("Слишком длинное значение. Проверьте данные и попробуйте ещё раз.", { reply_markup: inlineKeyboard([[inlineButton("❌ Отменить", "checkout:cancel")]]) });
+    return;
+  }
+  if (flow.step === "phone" && (value.replace(/\D/g, "").length < 7 || value.replace(/\D/g, "").length > 15)) {
+    await ctx.reply("Введите номер телефона от 7 до 15 цифр.", { reply_markup: inlineKeyboard([[inlineButton("❌ Отменить", "checkout:cancel")]]) });
+    return;
+  }
+  if ((flow.step === "city" || flow.step === "address") && value.length < 2) {
+    await ctx.reply("Введите значение не короче двух символов.", { reply_markup: inlineKeyboard([[inlineButton("❌ Отменить", "checkout:cancel")]]) });
     return;
   }
   await saveCheckoutDraft(ctx, { [flow.step]: value });

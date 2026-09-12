@@ -58,6 +58,8 @@ function normalizeOrderStatus(status: unknown): OrderStatus {
   return "🆕 Новый";
 }
 export interface CheckoutDraft { name?: string; phone?: string; city?: string; address?: string; delivery_method?: DeliveryMethod; payment_method?: PaymentMethod; promoCode?: string; appliedPromoCodeId?: string; itemsSubtotal?: number; appliedDiscountPercent?: number; discountAmount?: number; finalTotal?: number; updatedAt: number; }
+/** Prevent accidental or malicious cart totals from becoming unmanageable. */
+export const MAX_CART_QUANTITY = 99;
 export interface Alert { id: string; itemId: string; type: "threshold" | "percent"; price?: number; direction?: "above" | "below"; percent?: number; window?: string; baseline?: number; createdAt: number; lastTriggered?: number; cooldownHours: number; enabled: boolean; }
 export interface Queued { id: string; itemId: string; ticker: string; detectedAt: number; note: string; }
 export interface State { version: 1; users: Record<string, Profile>; items: Record<string, Item[]>; alerts: Record<string, Alert[]>; queued: Record<string, Queued[]>; catalog: CatalogProduct[]; categories: CatalogCategory[]; carts: Record<string, CartLine[]>; orders: Record<string, Order[]>; promoCodes: PromoCode[]; checkoutDrafts: Record<string, CheckoutDraft>; metrics: { triggers: Record<string, number>; errors: number }; config: { cooldown: number; hysteresis: number; percentWindow: string; topN: number }; }
@@ -159,8 +161,8 @@ export async function addCatalogCategory(name: string) {
     return category;
   });
 }
-export async function addToCart(ctx: Ctx, productId: string, quantity = 1) { return transaction((s) => { const product = s.catalog.find((entry) => entry.id === productId); if (!product || !Number.isInteger(quantity) || quantity < 1 || product.availability !== "in_stock") return false; const uid = userId(ctx); const lines = s.carts[uid] ?? (s.carts[uid] = []); const line = lines.find((entry) => entry.productId === productId); if (line) { line.quantity += quantity; line.unitPrice = line.unitPrice ?? product.price; line.catalogUpdatedAt = line.catalogUpdatedAt ?? product.updatedAt; } else lines.push({ productId, quantity, unitPrice: product.price, catalogUpdatedAt: product.updatedAt }); syncCheckoutPricing(s, uid); return true; }); }
-export async function changeCartQuantity(ctx: Ctx, productId: string, delta: number) { return transaction((s) => { if (!Number.isInteger(delta) || delta === 0) return false; const uid = userId(ctx); const lines = s.carts[uid] ?? []; const line = lines.find((entry) => entry.productId === productId); if (!line) return false; line.quantity += delta; if (line.quantity <= 0) s.carts[uid] = lines.filter((entry) => entry.productId !== productId); syncCheckoutPricing(s, uid); return true; }); }
+export async function addToCart(ctx: Ctx, productId: string, quantity = 1) { return transaction((s) => { const product = s.catalog.find((entry) => entry.id === productId); if (!product || !Number.isInteger(quantity) || quantity < 1 || product.availability !== "in_stock") return false; const uid = userId(ctx); const lines = s.carts[uid] ?? (s.carts[uid] = []); const line = lines.find((entry) => entry.productId === productId); if (line) { if (line.quantity + quantity > MAX_CART_QUANTITY) return false; line.quantity += quantity; line.unitPrice = line.unitPrice ?? product.price; line.catalogUpdatedAt = line.catalogUpdatedAt ?? product.updatedAt; } else lines.push({ productId, quantity, unitPrice: product.price, catalogUpdatedAt: product.updatedAt }); syncCheckoutPricing(s, uid); return true; }); }
+export async function changeCartQuantity(ctx: Ctx, productId: string, delta: number) { return transaction((s) => { if (!Number.isInteger(delta) || delta === 0) return false; const uid = userId(ctx); const lines = s.carts[uid] ?? []; const line = lines.find((entry) => entry.productId === productId); if (!line || line.quantity + delta > MAX_CART_QUANTITY) return false; line.quantity += delta; if (line.quantity <= 0) s.carts[uid] = lines.filter((entry) => entry.productId !== productId); syncCheckoutPricing(s, uid); return true; }); }
 export async function removeFromCart(ctx: Ctx, productId: string) { return transaction((s) => { const uid = userId(ctx); const lines = s.carts[uid] ?? []; const before = lines.length; s.carts[uid] = lines.filter((entry) => entry.productId !== productId); syncCheckoutPricing(s, uid); return s.carts[uid].length !== before; }); }
 export async function clearCart(ctx: Ctx) { return transaction((s) => { const uid = userId(ctx); s.carts[uid] = []; syncCheckoutPricing(s, uid); }); }
 
@@ -276,9 +278,9 @@ export async function applyPromoCode(ctx: Ctx, code: string) {
   return transaction((s) => {
     const uid = userId(ctx);
     const draft = s.checkoutDrafts[uid] ?? (s.checkoutDrafts[uid] = { updatedAt: now() });
-    if (draft.promoCode === normalized) return { status: "already" as const, draft: { ...draft } };
     const promo = s.promoCodes.find((entry) => entry.code === normalized && entry.active);
     if (!promo) return { status: "invalid" as const };
+    if (draft.promoCode === normalized) return { status: "already" as const, draft: { ...draft } };
     const pricing = checkoutPricing(s, uid);
     const totals = recalculateOrderTotal(pricing.itemsSubtotal, promo.discountPercent);
     Object.assign(draft, { promoCode: promo.code, appliedPromoCodeId: promo.id, itemsSubtotal: pricing.itemsSubtotal, appliedDiscountPercent: promo.discountPercent, discountAmount: totals.discountAmount, finalTotal: totals.finalTotal, updatedAt: now() });
@@ -294,7 +296,7 @@ export async function createOrderFromCheckout(ctx: Ctx, customer: CustomerData, 
     const lines: OrderLine[] = [];
     for (const line of cart) {
       const product = products.get(line.productId);
-      if (!product || product.availability !== "in_stock") return undefined;
+      if (!product || product.availability !== "in_stock" || !Number.isInteger(line.quantity) || line.quantity < 1 || line.quantity > MAX_CART_QUANTITY) return undefined;
       lines.push({ productId: product.id, name: product.name, unitPrice: product.price, quantity: line.quantity, subtotal: product.price * line.quantity });
     }
     if (!lines.length) return undefined;

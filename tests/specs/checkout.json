@@ -38,5 +38,20 @@
       {"send":{"callback":"checkout:cancel"},"expect":[{"method":"sendMessage","payload":{"text":"Оформление отменено. Корзина сохранена."}}]},
       {"send":{"callback":"checkout:start"},"expect":[{"method":"sendMessage","payload":{"text":"Введите полное имя получателя."}}]}
     ]
+  },
+  {
+    "name": "Недействительный промокод не меняет итог",
+    "steps": [
+      {"send":{"callback":"catalog:cart:add:electronics:desk-lamp"},"expect":[{"method":"sendMessage","payload":{"text":"Товар добавлен в корзину."}}]},
+      {"send":{"callback":"checkout:start"},"expect":[{"method":"sendMessage","payload":{"text":"Введите полное имя получателя."}}]},
+      {"send":{"text":"Ольга Петрова"},"expect":[{"method":"sendMessage","payload":{"text":"Введите номер телефона."}}]},
+      {"send":{"text":"+7 900 111-22-33"},"expect":[{"method":"sendMessage","payload":{"text":"Введите город доставки."}}]},
+      {"send":{"text":"Москва"},"expect":[{"method":"sendMessage","payload":{"text":"Введите адрес доставки."}}]},
+      {"send":{"text":"ул. Ленина, 1"},"expect":[{"method":"sendMessage","payload":{"text":"Выберите способ получения заказа."}}]},
+      {"send":{"callback":"checkout:delivery:pickup"},"expect":[{"method":"sendMessage","payload":{"text":"Выберите способ оплаты."}}]},
+      {"send":{"callback":"checkout:payment:card"},"expect":[{"method":"sendMessage"}]},
+      {"send":{"callback":"checkout:promo"},"expect":[{"method":"sendMessage","payload":{"text":"Введите промокод."}}]},
+      {"send":{"text":"EXPIRED"},"expect":[{"method":"sendMessage","payload":{"text":"Промокод недействителен или отключён."}}]}
+    ]
   }
 ]
