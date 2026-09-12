@@ -4,6 +4,7 @@ import { inlineButton, inlineKeyboard } from "../toolkit/index.js";
 import { addToCart, changeCartQuantity, clearCart, getCatalogCategory, getCatalogProduct, getProfile, getUserOrder, listCatalogCategories, listCatalogProducts, listUserOrders, removeFromCart, snapshot, updateProfile, userId } from "../store.js";
 import { formatPrice } from "../locale.js";
 import { force, menuKeyboard } from "../storefront.js";
+import { showMenu as showPersistentMenu } from "../menu-state.js";
 
 const composer = new Composer<Ctx>();
 
@@ -14,8 +15,7 @@ async function catalog(ctx: Ctx) {
   const categories = await listCatalogCategories();
   const rows = categories.map((category) => [inlineButton(category.name, "catalog:category:" + category.id)]);
   rows.push([inlineButton("⬅️ Назад", "menu:main")]);
-  const deliver = ctx.callbackQuery ? ctx.editMessageText.bind(ctx) : ctx.reply.bind(ctx);
-  await deliver("Выберите категорию товаров", { reply_markup: inlineKeyboard(rows) });
+  await showPersistentMenu(ctx, { text: "Выберите категорию товаров", markup: inlineKeyboard(rows) });
 }
 
 async function category(ctx: Ctx, categoryId: string) {
@@ -25,8 +25,6 @@ async function category(ctx: Ctx, categoryId: string) {
     return;
   }
   ctx.session.flow = { kind: "category", categoryId: selected.id };
-  const deliver = ctx.callbackQuery ? ctx.editMessageText.bind(ctx) : ctx.reply.bind(ctx);
-  await deliver("Категория: " + selected.name, { reply_markup: inlineKeyboard([[inlineButton("⬅️ Назад", "catalog:back:" + selected.id)]]) });
   await productList(ctx, selected.id);
 }
 
@@ -39,7 +37,7 @@ async function productList(ctx: Ctx, categoryId: string) {
   if (!selected) return catalog(ctx);
   const products = await listCatalogProducts(categoryId);
   const rows = [[inlineButton("⬅️ Назад", "catalog:back:" + categoryId)]];
-  await ctx.reply(products.length ? "Товары в категории «" + selected.name + "»" : "В этой категории пока нет товаров.", { reply_markup: inlineKeyboard(rows) });
+  await showPersistentMenu(ctx, { text: products.length ? "Товары в категории «" + selected.name + "»" : "В этой категории пока нет товаров.", markup: inlineKeyboard(rows) });
   for (const product of products) {
     const caption = product.name + "\n" + productPrice(product) + "\n" + (product.availability === "in_stock" ? "В наличии" : "Нет в наличии");
     if (product.photo) await ctx.replyWithPhoto(product.photo, { caption, reply_markup: inlineKeyboard([[inlineButton(product.name, "catalog:product:view:" + product.id)]]) });
@@ -64,7 +62,7 @@ export async function cart(ctx: Ctx) {
   const state = await snapshot();
   const lines = state.carts[userId(ctx)] ?? [];
   if (!lines.length) {
-    await ctx.reply("Корзина пуста. Откройте каталог, чтобы добавить товары.", homeMarkup(ctx));
+    await showPersistentMenu(ctx, { text: "Корзина пуста. Откройте каталог, чтобы добавить товары.", markup: menuKeyboard(ctx) });
     return;
   }
   const products = new Map(state.catalog.map((product) => [product.id, product]));
@@ -76,7 +74,7 @@ export async function cart(ctx: Ctx) {
     return product.name + " × " + line.quantity + " — " + formatPrice(product.price * line.quantity, product.currency);
   }).filter((line): line is string => Boolean(line));
   if (!lines.length) {
-    await ctx.reply("Корзина пуста. Откройте каталог, чтобы добавить товары.", homeMarkup(ctx));
+    await showPersistentMenu(ctx, { text: "Корзина пуста. Откройте каталог, чтобы добавить товары.", markup: menuKeyboard(ctx) });
     return;
   }
   for (const line of lines) {
@@ -92,29 +90,27 @@ export async function cart(ctx: Ctx) {
     else await ctx.reply(caption, { reply_markup: controls });
   }
   const totals = Object.entries(subtotals).map(([currency, value]) => formatPrice(value, currency)).join(", ");
-  await ctx.reply("Итого: " + (totals || "нет доступных товаров"), { reply_markup: inlineKeyboard([[inlineButton("Оформить заказ", "checkout:start")], [inlineButton("⬅️ Назад", "cart:back")]]) });
+  await showPersistentMenu(ctx, { text: "Итого: " + (totals || "нет доступных товаров"), markup: inlineKeyboard([[inlineButton("Оформить заказ", "checkout:start")], [inlineButton("⬅️ Назад", "cart:back")]]) });
 }
 
 async function profile(ctx: Ctx) {
   const p = await getProfile(ctx);
   const draft = ctx.session.flow?.kind === "profile" ? ctx.session.flow.draft : {};
   const value = (field: "name" | "phone" | "city" | "address") => draft[field] ?? p[field] ?? "не указано";
-  await ctx.reply("Профиль\n\nимя: " + value("name") + "\nтелефон: " + value("phone") + "\nгород: " + value("city") + "\nадрес: " + value("address"), {
-    reply_markup: inlineKeyboard([
+  await showPersistentMenu(ctx, { text: "Профиль\n\nимя: " + value("name") + "\nтелефон: " + value("phone") + "\nгород: " + value("city") + "\nадрес: " + value("address"), markup: inlineKeyboard([
       [inlineButton("Имя", "profile:field:name"), inlineButton("Телефон", "profile:field:phone")],
       [inlineButton("Город", "profile:field:city"), inlineButton("Адрес", "profile:field:address")],
       [inlineButton("Сохранить", "profile:save"), inlineButton("📦 Мои заказы", "shop:orders")],
       [inlineButton("В главное меню", "shop:home")],
-    ]),
-  });
+    ]) });
 }
 
 async function orders(ctx: Ctx) {
   const list = await listUserOrders(ctx);
-  if (!list.length) { await ctx.reply("У вас пока нет заказов.", { reply_markup: inlineKeyboard([[inlineButton("В профиль", "shop:profile")], [inlineButton("В главное меню", "shop:home")]]) }); return; }
+  if (!list.length) { await showPersistentMenu(ctx, { text: "У вас пока нет заказов.", markup: inlineKeyboard([[inlineButton("В профиль", "shop:profile")], [inlineButton("В главное меню", "shop:home")]]) }); return; }
   const rows = list.map((order) => [inlineButton("Заказ " + order.id + " · " + formatPrice(order.totalAmount, order.currency), "profile:order:" + order.id)]);
   rows.push([inlineButton("В профиль", "shop:profile")], [inlineButton("В главное меню", "shop:home")]);
-  await ctx.reply("📦 Мои заказы", { reply_markup: inlineKeyboard(rows) });
+  await showPersistentMenu(ctx, { text: "📦 Мои заказы", markup: inlineKeyboard(rows) });
 }
 
 async function orderDetail(ctx: Ctx, orderId: string) {
@@ -127,7 +123,7 @@ async function orderDetail(ctx: Ctx, orderId: string) {
 }
 
 async function help(ctx: Ctx) {
-  await ctx.reply("Выберите каталог, чтобы посмотреть товары. В корзине можно проверить состав заказа. В профиле сохраните контактные данные и адрес доставки. По вопросам обратитесь к владельцу магазина.", homeMarkup(ctx));
+  await showPersistentMenu(ctx, { text: "Выберите каталог, чтобы посмотреть товары. В корзине можно проверить состав заказа. В профиле сохраните контактные данные и адрес доставки. По вопросам обратитесь к владельцу магазина.", markup: menuKeyboard(ctx) });
 }
 
 composer.on("message:text", async (ctx, next) => {
@@ -162,7 +158,7 @@ composer.callbackQuery("shop:orders", async (ctx) => { await ctx.answerCallbackQ
 composer.callbackQuery("shop:profile", async (ctx) => { await ctx.answerCallbackQuery(); await profile(ctx); });
 composer.callbackQuery(/^profile:order:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await orderDetail(ctx, ctx.match[1]); });
 composer.callbackQuery("shop:help", async (ctx) => { await ctx.answerCallbackQuery(); await help(ctx); });
-composer.callbackQuery("shop:home", async (ctx) => { await ctx.answerCallbackQuery(); await ctx.reply("Выберите раздел в меню ниже.", homeMarkup(ctx)); });
+composer.callbackQuery("shop:home", async (ctx) => { await ctx.answerCallbackQuery(); await showPersistentMenu(ctx, { text: "Выберите раздел в меню ниже.", markup: menuKeyboard(ctx) }, { replace: true }); });
 composer.callbackQuery(/^shop:add:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); const added = await addToCart(ctx, ctx.match[1]); await ctx.reply(added ? "Товар добавлен в корзину." : "Этот товар больше недоступен. Откройте каталог ещё раз.", homeMarkup(ctx)); });
 composer.callbackQuery(/^catalog:cart:add:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); const product = await getCatalogProduct(ctx.match[1]); const added = await addToCart(ctx, ctx.match[1]); await ctx.reply(added ? "Товар добавлен в корзину." : "Этот товар больше недоступен. Откройте каталог ещё раз.", { reply_markup: inlineKeyboard([[inlineButton("🛒 Открыть корзину", "shop:cart:from:" + (product?.id ?? ""))], [inlineButton("⬅️ Назад", "catalog:products:" + (product?.categoryId ?? ""))]]) }); });
 composer.callbackQuery(/^cart:(inc|dec|remove):(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); const action = ctx.match[1]; const productId = ctx.match[2]; if (action === "remove") await removeFromCart(ctx, productId); else await changeCartQuantity(ctx, productId, action === "inc" ? 1 : -1); await cart(ctx); });

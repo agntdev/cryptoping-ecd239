@@ -1,12 +1,13 @@
 import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
-import { inlineButton, inlineKeyboard } from "../toolkit/index.js";
+import { inlineButton, inlineKeyboard, registerMainMenuItem } from "../toolkit/index.js";
 import { addItem, getProfile, renameItem } from "../store.js";
 import { quote } from "../crypto.js";
 import { force } from "../storefront.js";
 import { formatPrice } from "../locale.js";
 
 const composer = new Composer<Ctx>();
+registerMainMenuItem({ label: "Добавить монету", data: "watchlist:add_coin", order: 10 });
 const seeds = inlineKeyboard([[inlineButton("Биткоин (BTC)", "coin:add:BTC"), inlineButton("Эфириум (ETH)", "coin:add:ETH")], [inlineButton("Тонкоин (TON)", "coin:add:TON"), inlineButton("Другая монета", "coin:other")], [inlineButton("В главное меню", "menu:main")]]);
 function controls(id: string) { return inlineKeyboard([[inlineButton("Уведомление по цене", "alert:price:" + id), inlineButton("Уведомление по %", "alert:percent:" + id)], [inlineButton("Удалить", "coin:delete:" + id), inlineButton("Мой список", "watchlist:view")]]); }
 async function add(ctx: Ctx, ticker: string) {

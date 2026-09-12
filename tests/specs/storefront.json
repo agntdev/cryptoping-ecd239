@@ -5,10 +5,10 @@
   ]},
   {"name":"Категории изменяет только владелец","steps":[
     {"send":{"callback":"shop:catalog"},"expect":[{"method":"editMessageText","payload":{"text":"Выберите категорию товаров"}}]},
-    {"send":{"callback":"catalog:category:create"},"expect":[{"method":"answerCallbackQuery"},{"method":"editMessageText","payload":{"text":"Выберите категорию товаров"}}]},
+    {"send":{"callback":"catalog:category:create"},"expect":[{"method":"answerCallbackQuery"}]},
     {"send":{"text":"Спорт"},"expect":[{"method":"sendMessage","payload":{"text":"Sorry, I didn't understand that. Try /help."}}]}
   ]},
   {"name":"Пустая корзина сохраняет inline навигацию","steps":[
-    {"send":{"callback":"shop:cart"},"expect":[{"method":"sendMessage","payload":{"text":"Корзина пуста. Откройте каталог, чтобы добавить товары."}}]}
+    {"send":{"callback":"shop:cart"},"expect":[{"method":"editMessageText","payload":{"text":"Корзина пуста. Откройте каталог, чтобы добавить товары."}}]}
   ]}
 ]

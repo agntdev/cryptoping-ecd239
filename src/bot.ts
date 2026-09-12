@@ -8,6 +8,13 @@ import { configureDomainStore } from "./store.js";
 // persistent storage (see AGENTS.md).
 export interface Session {
   flow?: import("./store.js").Flow;
+  /** The one editable navigation message for this private chat. */
+  activeMenu?: {
+    messageId: number;
+    text: string;
+    markup: unknown;
+    history: Array<{ text: string; markup: unknown }>;
+  };
 }
 
 export type Ctx = BotContext<Session>;

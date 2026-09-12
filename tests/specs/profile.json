@@ -2,7 +2,7 @@
   {
     "name": "Профиль клиента сохраняет личные данные",
     "steps": [
-      {"send":{"callback":"shop:profile"},"expect":[{"method":"sendMessage","payload":{"text":"Профиль\n\nимя: не указано\nтелефон: не указано\nгород: не указано\nадрес: не указано"}}]},
+      {"send":{"callback":"shop:profile"},"expect":[{"method":"editMessageText","payload":{"text":"Профиль\n\nимя: не указано\nтелефон: не указано\nгород: не указано\nадрес: не указано"}}]},
       {"send":{"callback":"profile:field:name"},"expect":[{"method":"sendMessage","payload":{"text":"Введите новое значение для поля «name»."}}]},
       {"send":{"text":"Анна Смирнова"},"expect":[{"method":"sendMessage","payload":{"text":"Изменения готовы. Нажмите «Сохранить»."}}]},
       {"send":{"callback":"profile:field:phone"},"expect":[{"method":"sendMessage","payload":{"text":"Введите новое значение для поля «phone»."}}]},
@@ -12,13 +12,13 @@
       {"send":{"callback":"profile:field:address"},"expect":[{"method":"sendMessage","payload":{"text":"Введите новое значение для поля «address»."}}]},
       {"send":{"text":"ул. Тверская, 1"},"expect":[{"method":"sendMessage","payload":{"text":"Изменения готовы. Нажмите «Сохранить»."}}]},
       {"send":{"callback":"profile:save"},"expect":[{"method":"sendMessage","payload":{"text":"Профиль сохранён."}}]},
-      {"send":{"callback":"shop:profile"},"expect":[{"method":"sendMessage","payload":{"text":"Профиль\n\nимя: Анна Смирнова\nтелефон: +7 900 123-45-67\nгород: Москва\nадрес: ул. Тверская, 1"}}]}
+      {"send":{"callback":"shop:profile"},"expect":[{"method":"editMessageText","payload":{"text":"Профиль\n\nимя: Анна Смирнова\nтелефон: +7 900 123-45-67\nгород: Москва\nадрес: ул. Тверская, 1"}}]}
     ]
   },
   {
     "name": "Заказы клиента не раскрываются по чужому идентификатору",
     "steps": [
-      {"send":{"callback":"shop:orders"},"expect":[{"method":"sendMessage","payload":{"text":"У вас пока нет заказов."}}]},
+      {"send":{"callback":"shop:orders"},"expect":[{"method":"editMessageText","payload":{"text":"У вас пока нет заказов."}}]},
       {"send":{"callback":"profile:order:чужой-заказ"},"expect":[{"method":"sendMessage","payload":{"text":"Этот заказ недоступен."}}]}
     ]
   }
