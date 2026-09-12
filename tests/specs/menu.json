@@ -1,5 +1,21 @@
 [
   {
+    "name": "/menu opens the main menu",
+    "steps": [
+      {
+        "send": {"text": "/menu"},
+        "expect": [
+          {
+            "method": "sendMessage",
+            "payload": {
+              "text": "Добро пожаловать. Выберите раздел каталога или откройте избранное."
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
     "name": "Главное меню содержит только пять разделов",
     "steps": [
       {
