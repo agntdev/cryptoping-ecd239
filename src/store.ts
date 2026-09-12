@@ -8,29 +8,39 @@ export type Flow =
   | { kind: "percent"; itemId: string; percent?: number; window?: string }
   | { kind: "settings"; step: "timezone" | "quiet" | "summary" | "cooldown" }
   | { kind: "profile"; field: "name" | "email" | "address" | "phone" }
+  | { kind: "catalog" }
+  | { kind: "category"; categoryId: string }
+  | { kind: "category-create"; retried?: boolean }
   | undefined;
 
 export interface Profile { id: string; timezone: string; fiat: string; quietStart?: string; quietEnd?: string; morning: boolean; summaryTime?: string; cooldown: number; hysteresis: number; lastSeen: number; name?: string; email?: string; address?: string; phone?: string; }
 export interface Item { id: string; ticker: string; name: string; addedAt: number; lastPrice?: number; }
 export interface CatalogProduct { id: string; name: string; price: number; currency: string; description?: string; }
+export interface CatalogCategory { id: string; name: string; }
 export interface CartLine { productId: string; quantity: number; }
 export interface Order { id: string; lines: CartLine[]; subtotal: number; currency: string; createdAt: number; status: "pending" | "paid" | "cancelled"; }
 export interface Alert { id: string; itemId: string; type: "threshold" | "percent"; price?: number; direction?: "above" | "below"; percent?: number; window?: string; baseline?: number; createdAt: number; lastTriggered?: number; cooldownHours: number; enabled: boolean; }
 export interface Queued { id: string; itemId: string; ticker: string; detectedAt: number; note: string; }
-export interface State { version: 1; users: Record<string, Profile>; items: Record<string, Item[]>; alerts: Record<string, Alert[]>; queued: Record<string, Queued[]>; catalog: CatalogProduct[]; carts: Record<string, CartLine[]>; orders: Record<string, Order[]>; metrics: { triggers: Record<string, number>; errors: number }; config: { cooldown: number; hysteresis: number; percentWindow: string; topN: number }; }
+export interface State { version: 1; users: Record<string, Profile>; items: Record<string, Item[]>; alerts: Record<string, Alert[]>; queued: Record<string, Queued[]>; catalog: CatalogProduct[]; categories: CatalogCategory[]; carts: Record<string, CartLine[]>; orders: Record<string, Order[]>; metrics: { triggers: Record<string, number>; errors: number }; config: { cooldown: number; hysteresis: number; percentWindow: string; topN: number }; }
 
 let adapter: StorageAdapter<unknown> | undefined;
 let clock = () => Date.now();
 let queue: Promise<unknown> = Promise.resolve();
 const KEY = "cryptowatch:state:v1";
-const empty = (): State => ({ version: 1, users: {}, items: {}, alerts: {}, queued: {}, catalog: [], carts: {}, orders: {}, metrics: { triggers: {}, errors: 0 }, config: { cooldown: 6, hysteresis: 0.5, percentWindow: "1h", topN: 10 } });
+const initialCategories: CatalogCategory[] = [
+  { id: "electronics", name: "Электроника" },
+  { id: "clothing", name: "Одежда" },
+  { id: "books", name: "Книги" },
+  { id: "home-and-garden", name: "Дом и сад" },
+];
+const empty = (): State => ({ version: 1, users: {}, items: {}, alerts: {}, queued: {}, catalog: [], categories: initialCategories.map((category) => ({ ...category })), carts: {}, orders: {}, metrics: { triggers: {}, errors: 0 }, config: { cooldown: 6, hysteresis: 0.5, percentWindow: "1h", topN: 10 } });
 export const now = () => clock();
 export function setClockForTests(fn?: () => number) { clock = fn ?? (() => Date.now()); }
 export function configureDomainStore(next: StorageAdapter<unknown>) { adapter = next; }
 async function read() {
   const saved = (await adapter?.read(KEY)) as Partial<State> | undefined;
   if (!saved) return empty();
-  return { ...empty(), ...saved, catalog: saved.catalog ?? [], carts: saved.carts ?? {}, orders: saved.orders ?? {}, metrics: { ...empty().metrics, ...saved.metrics }, config: { ...empty().config, ...saved.config } } as State;
+  return { ...empty(), ...saved, catalog: saved.catalog ?? [], categories: saved.categories ?? empty().categories, carts: saved.carts ?? {}, orders: saved.orders ?? {}, metrics: { ...empty().metrics, ...saved.metrics }, config: { ...empty().config, ...saved.config } } as State;
 }
 async function write(s: State) { if (!adapter) throw new Error("Store is not configured"); await adapter.write(KEY, s); }
 export async function transaction<T>(fn: (s: State) => T | Promise<T>): Promise<T> { const run = queue.then(async () => { const s = await read(); const result = await fn(s); await write(s); return result; }); queue = run.then(() => undefined, () => undefined); return run; }
@@ -50,5 +60,20 @@ export async function incrementTrigger(ticker: string) { return transaction((s) 
 
 /** Hook for a future catalog service or owner import. Products are durable. */
 export async function addCatalogProduct(product: CatalogProduct) { return transaction((s) => { const index = s.catalog.findIndex((entry) => entry.id === product.id); if (index >= 0) s.catalog[index] = product; else s.catalog.push(product); return product; }); }
+export async function listCatalogCategories() { return (await snapshot()).categories; }
+export async function getCatalogCategory(id: string) { return (await snapshot()).categories.find((category) => category.id === id); }
+export async function addCatalogCategory(name: string) {
+  return transaction((s) => {
+    const existing = s.categories.find((category) => category.name.toLocaleLowerCase() === name.toLocaleLowerCase());
+    if (existing) return existing;
+    const base = name.toLocaleLowerCase().normalize("NFKD").replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "") || "category";
+    let id = base;
+    let suffix = 2;
+    while (s.categories.some((category) => category.id === id)) id = base + "-" + suffix++;
+    const category = { id, name };
+    s.categories.push(category);
+    return category;
+  });
+}
 export async function addToCart(ctx: Ctx, productId: string, quantity = 1) { return transaction((s) => { const product = s.catalog.find((entry) => entry.id === productId); if (!product || !Number.isInteger(quantity) || quantity < 1) return false; const lines = s.carts[userId(ctx)] ?? (s.carts[userId(ctx)] = []); const line = lines.find((entry) => entry.productId === productId); if (line) line.quantity += quantity; else lines.push({ productId, quantity }); return true; }); }
 export async function clearCart(ctx: Ctx) { return transaction((s) => { s.carts[userId(ctx)] = []; }); }
