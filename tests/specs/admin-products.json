@@ -1,0 +1,15 @@
+[
+  {
+    "name": "Панель товаров закрыта без владельца",
+    "steps": [
+      {"send":{"text":"/admin_products"},"expect":[{"method":"sendMessage","payload":{"text":"Доступ владельца ещё не настроен."}}]},
+      {"send":{"callback":"admin:products"},"expect":[{"method":"answerCallbackQuery"},{"method":"sendMessage","payload":{"text":"Доступ владельца ещё не настроен."}}]}
+    ]
+  },
+  {
+    "name": "Удаление товара требует подтверждения владельца",
+    "steps": [
+      {"send":{"callback":"admin:product:delete:electronics:desk-lamp"},"expect":[{"method":"answerCallbackQuery"},{"method":"sendMessage","payload":{"text":"Доступ владельца ещё не настроен."}}]}
+    ]
+  }
+]

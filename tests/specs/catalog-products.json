@@ -1,16 +1,16 @@
 [
   {
-    "name": "Создание и просмотр товара",
+    "name": "Публичный просмотр товаров",
     "steps": [
       {"send":{"text":"🛍 Каталог"},"expect":[{"method":"sendMessage","payload":{"text":"Выберите категорию товаров"}}]},
       {"send":{"text":"Электроника"},"expect":[{"method":"sendMessage","payload":{"text":"Категория: Электроника"}},{"method":"sendMessage","payload":{"text":"Товары в категории «Электроника»"}}]},
-      {"send":{"callback":"catalog:product:create:electronics"},"expect":[{"method":"answerCallbackQuery"},{"method":"sendMessage","payload":{"text":"Введите название товара"}}]},
-      {"send":{"text":"Беспроводная клавиатура"},"expect":[{"method":"sendMessage","payload":{"text":"Загрузите одно фото товара"}}]},
-      {"send":{"update":{"update_id":5,"message":{"message_id":5,"date":0,"chat":{"id":1,"type":"private","first_name":"Test"},"from":{"id":1,"is_bot":false,"first_name":"Test"},"photo":[{"file_id":"photo-small","file_unique_id":"unique-small","width":320,"height":240},{"file_id":"photo-large","file_unique_id":"unique-large","width":1280,"height":960}]}}},"expect":[{"method":"sendMessage","payload":{"text":"Введите описание товара"}}]},
-      {"send":{"text":"Тонкая клавиатура для рабочего стола"},"expect":[{"method":"sendMessage","payload":{"text":"Введите цену числом"}}]},
-      {"send":{"text":"5490"},"expect":[{"method":"sendMessage","payload":{"text":"Выберите наличие товара"}}]},
-      {"send":{"callback":"catalog:product:availability:in_stock"},"expect":[{"method":"answerCallbackQuery"},{"method":"sendMessage","payload":{"text":"Товар сохранён."}},{"method":"sendMessage","payload":{"text":"Товары в категории «Электроника»"}}]},
       {"send":{"callback":"catalog:product:view:electronics:desk-lamp"},"expect":[{"method":"answerCallbackQuery"},{"method":"sendPhoto"}]}
+    ]
+  },
+  {
+    "name": "Создание товара закрыто без владельца",
+    "steps": [
+      {"send":{"callback":"admin:product:create:electronics"},"expect":[{"method":"answerCallbackQuery"},{"method":"sendMessage","payload":{"text":"Доступ владельца ещё не настроен."}}]}
     ]
   }
 ]
