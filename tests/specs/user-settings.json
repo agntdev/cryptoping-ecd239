@@ -7,7 +7,7 @@
           {
             "method": "sendMessage",
             "payload": {
-              "text": "Open settings to set timezone, quiet hours, morning summary time, and per-user defaults"
+            "text": "Настройки\nЧасовой пояс: UTC\nТихие часы: выкл.\nУтренний обзор: выкл.\nПауза уведомлений: 6 ч."
             }
           }
         ],
