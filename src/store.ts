@@ -11,11 +11,12 @@ export type Flow =
   | { kind: "catalog" }
   | { kind: "category"; categoryId: string }
   | { kind: "category-create"; retried?: boolean }
+  | { kind: "product-create"; categoryId: string; step: "name" | "photo" | "description" | "price" | "availability"; name?: string; photo?: string; description?: string; price?: number }
   | undefined;
 
 export interface Profile { id: string; timezone: string; fiat: string; quietStart?: string; quietEnd?: string; morning: boolean; summaryTime?: string; cooldown: number; hysteresis: number; lastSeen: number; name?: string; email?: string; address?: string; phone?: string; }
 export interface Item { id: string; ticker: string; name: string; addedAt: number; lastPrice?: number; }
-export interface CatalogProduct { id: string; name: string; price: number; currency: string; description?: string; }
+export interface CatalogProduct { id: string; categoryId: string; name: string; photo: string; price: number; currency: string; description: string; availability: "in_stock" | "out_of_stock"; }
 export interface CatalogCategory { id: string; name: string; }
 export interface CartLine { productId: string; quantity: number; }
 export interface Order { id: string; lines: CartLine[]; subtotal: number; currency: string; createdAt: number; status: "pending" | "paid" | "cancelled"; }
@@ -33,14 +34,20 @@ const initialCategories: CatalogCategory[] = [
   { id: "books", name: "Книги" },
   { id: "home-and-garden", name: "Дом и сад" },
 ];
-const empty = (): State => ({ version: 1, users: {}, items: {}, alerts: {}, queued: {}, catalog: [], categories: initialCategories.map((category) => ({ ...category })), carts: {}, orders: {}, metrics: { triggers: {}, errors: 0 }, config: { cooldown: 6, hysteresis: 0.5, percentWindow: "1h", topN: 10 } });
+const initialProducts: CatalogProduct[] = [
+  { id: "electronics:desk-lamp", categoryId: "electronics", name: "Настольная лампа", photo: "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=640", description: "Компактная лампа для рабочего стола.", price: 2490, currency: "RUB", availability: "in_stock" },
+  { id: "clothing:hoodie", categoryId: "clothing", name: "Базовый худи", photo: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=640", description: "Мягкий хлопковый худи на каждый день.", price: 3990, currency: "RUB", availability: "in_stock" },
+  { id: "books:design-book", categoryId: "books", name: "Книга о дизайне", photo: "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=640", description: "Практическое введение в принципы дизайна.", price: 1290, currency: "RUB", availability: "out_of_stock" },
+  { id: "home-and-garden:planter", categoryId: "home-and-garden", name: "Керамическое кашпо", photo: "https://images.unsplash.com/photo-1485955900006-10f4d324d411?w=640", description: "Керамическое кашпо для домашних растений.", price: 1890, currency: "RUB", availability: "in_stock" },
+];
+const empty = (): State => ({ version: 1, users: {}, items: {}, alerts: {}, queued: {}, catalog: initialProducts.map((product) => ({ ...product })), categories: initialCategories.map((category) => ({ ...category })), carts: {}, orders: {}, metrics: { triggers: {}, errors: 0 }, config: { cooldown: 6, hysteresis: 0.5, percentWindow: "1h", topN: 10 } });
 export const now = () => clock();
 export function setClockForTests(fn?: () => number) { clock = fn ?? (() => Date.now()); }
 export function configureDomainStore(next: StorageAdapter<unknown>) { adapter = next; }
 async function read() {
   const saved = (await adapter?.read(KEY)) as Partial<State> | undefined;
   if (!saved) return empty();
-  return { ...empty(), ...saved, catalog: saved.catalog ?? [], categories: saved.categories ?? empty().categories, carts: saved.carts ?? {}, orders: saved.orders ?? {}, metrics: { ...empty().metrics, ...saved.metrics }, config: { ...empty().config, ...saved.config } } as State;
+  return { ...empty(), ...saved, catalog: saved.catalog ?? empty().catalog, categories: saved.categories ?? empty().categories, carts: saved.carts ?? {}, orders: saved.orders ?? {}, metrics: { ...empty().metrics, ...saved.metrics }, config: { ...empty().config, ...saved.config } } as State;
 }
 async function write(s: State) { if (!adapter) throw new Error("Store is not configured"); await adapter.write(KEY, s); }
 export async function transaction<T>(fn: (s: State) => T | Promise<T>): Promise<T> { const run = queue.then(async () => { const s = await read(); const result = await fn(s); await write(s); return result; }); queue = run.then(() => undefined, () => undefined); return run; }
@@ -62,6 +69,19 @@ export async function incrementTrigger(ticker: string) { return transaction((s) 
 export async function addCatalogProduct(product: CatalogProduct) { return transaction((s) => { const index = s.catalog.findIndex((entry) => entry.id === product.id); if (index >= 0) s.catalog[index] = product; else s.catalog.push(product); return product; }); }
 export async function listCatalogCategories() { return (await snapshot()).categories; }
 export async function getCatalogCategory(id: string) { return (await snapshot()).categories.find((category) => category.id === id); }
+export async function listCatalogProducts(categoryId: string) { return (await snapshot()).catalog.filter((product) => product.categoryId === categoryId); }
+export async function getCatalogProduct(id: string) { return (await snapshot()).catalog.find((product) => product.id === id); }
+export async function createCatalogProduct(product: Omit<CatalogProduct, "id">) {
+  return transaction((s) => {
+    const base = product.categoryId + ":" + product.name.toLocaleLowerCase().normalize("NFKD").replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "") || "product";
+    let id = base;
+    let suffix = 2;
+    while (s.catalog.some((entry) => entry.id === id)) id = base + "-" + suffix++;
+    const saved = { ...product, id };
+    s.catalog.push(saved);
+    return saved;
+  });
+}
 export async function addCatalogCategory(name: string) {
   return transaction((s) => {
     const existing = s.categories.find((category) => category.name.toLocaleLowerCase() === name.toLocaleLowerCase());
