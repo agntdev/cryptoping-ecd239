@@ -10,14 +10,13 @@ const composer = new Composer<Ctx>();
 function homeMarkup() { return { reply_markup: menuKeyboard() }; }
 
 async function catalog(ctx: Ctx) {
-  const state = await snapshot();
-  if (!state.catalog.length) {
-    await ctx.reply("Каталог пока пуст. Товары появятся здесь позже.", homeMarkup());
-    return;
-  }
-  const rows = state.catalog.map((product) => [inlineButton(product.name + " · " + formatPrice(product.price, product.currency), "shop:add:" + product.id)]);
-  rows.push([inlineButton("В главное меню", "shop:home")]);
-  await ctx.reply("Выберите товар.", { reply_markup: inlineKeyboard(rows) });
+  await ctx.reply("Выберите категорию товаров", {
+    reply_markup: {
+      keyboard: [[{ text: "⬅️ Назад" }]],
+      resize_keyboard: true,
+      one_time_keyboard: true,
+    },
+  });
 }
 
 async function cart(ctx: Ctx) {
@@ -66,6 +65,7 @@ async function help(ctx: Ctx) {
 composer.on("message:text", async (ctx, next) => {
   const text = ctx.message.text.trim();
   if (text === "🛍 Каталог") return catalog(ctx);
+  if (text === "⬅️ Назад") return ctx.reply("Добро пожаловать. Выберите раздел в меню ниже.", homeMarkup());
   if (text === "🛒 Корзина") return cart(ctx);
   if (text === "📦 Мои заказы") return orders(ctx);
   if (text === "👤 Профиль") return profile(ctx);
