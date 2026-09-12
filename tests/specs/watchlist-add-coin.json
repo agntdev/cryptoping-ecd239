@@ -1,1 +1,0 @@
-[{"name":"Пустой каталог","steps":[{"send":{"callback":"catalog:open"},"expect":[{"method":"sendMessage","payload":{"text":"Каталог пока пуст. Загляните позже."}}]}]}]

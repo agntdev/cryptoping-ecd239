@@ -1,1 +1,0 @@
-[{"name":"Каталог доступен командой","steps":[{"send":{"text":"/catalog"},"expect":[{"method":"sendMessage","payload":{"text":"Каталог пока пуст. Загляните позже."}}]}]}]

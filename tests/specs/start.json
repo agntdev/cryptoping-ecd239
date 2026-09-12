@@ -1,1 +1,1 @@
-[{"name":"Главное меню магазина","steps":[{"send":{"text":"/start"},"expect":[{"method":"sendMessage","payload":{"text":"Добро пожаловать! Здесь можно выбрать товары и оформить заказ."}}]}]}]
+[{"name":"Welcome menu","steps":[{"send":{"text":"/start"},"expect":[{"method":"sendMessage","payload":{"text":"Welcome to CryptoWatch. Track coins privately and get clear alerts when prices move."}}]}]}]

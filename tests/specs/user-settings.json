@@ -1,1 +1,0 @@
-[{"name":"Профиль пуст","steps":[{"send":{"callback":"profile:open"},"expect":[{"method":"sendMessage","payload":{"text":"Профиль пока не заполнен."}}]}]}]

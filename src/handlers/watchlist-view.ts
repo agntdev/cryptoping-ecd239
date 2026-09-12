@@ -1,14 +1,12 @@
 import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
-import { registerMainMenuItem } from "../toolkit/index.js";
-import { addToCart, changeCart, clearCart, getUser, removeCart, snapshot } from "../store.js";
-import { cartMarkup, cartText, menu } from "../storefront.js";
-registerMainMenuItem({ label: "Корзина", data: "cart:open", order: 20 });
+import { inlineButton, inlineKeyboard, registerMainMenuItem } from "../toolkit/index.js";
+import { snapshot, userId, removeItem } from "../store.js";
+registerMainMenuItem({ label: "My list", data: "watchlist:view", order: 20 });
 const composer = new Composer<Ctx>();
-async function show(ctx: Ctx, edit = false) { const { rows, total } = await cartText(ctx); const text = rows.length ? `Ваша корзина\n\n${rows.map((x) => `${x.p.title} × ${x.quantity}\n${x.subtotal.toFixed(2)} ${x.p.currency}`).join("\n\n")}\n\nИтого: ${total.toFixed(2)} ${rows[0].p.currency}` : "Корзина пуста. Откройте каталог, чтобы выбрать товары."; const opts = { reply_markup: rows.length ? cartMarkup(rows) : menu() }; if (edit) await ctx.editMessageText(text, opts); else await ctx.reply(text, opts); }
-composer.callbackQuery("cart:open", async (ctx) => { await ctx.answerCallbackQuery(); await show(ctx); });
-composer.callbackQuery(/^cart:add:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); const result = await addToCart(ctx, ctx.match[1]); if (result === "missing") await ctx.reply("Товар не найден. Откройте каталог ещё раз."); else if (result === "stock") await ctx.reply("Недостаточно товара на складе."); else { await ctx.reply("Товар добавлен в корзину.", { reply_markup: cartMarkup((await cartText(ctx)).rows) }); } });
-composer.callbackQuery(/^cart:(inc|dec):(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await changeCart(ctx, ctx.match[2], ctx.match[1] === "inc" ? 1 : -1); await show(ctx, true); });
-composer.callbackQuery(/^cart:remove:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await removeCart(ctx, ctx.match[1]); await show(ctx, true); });
-composer.callbackQuery("cart:clear", async (ctx) => { await ctx.answerCallbackQuery(); await clearCart(ctx); await show(ctx, true); });
+async function show(ctx: Ctx) { const s = await snapshot(); const items = s.items[userId(ctx)] ?? []; if (!items.length) { await ctx.reply("Your watchlist is empty. Tap Add coin to begin.", { reply_markup: inlineKeyboard([[inlineButton("Add coin", "watchlist:add_coin"), inlineButton("Back to menu", "menu:main")]]) }); return; } const rows = items.map((x) => [inlineButton(`${x.ticker}${x.lastPrice ? ` · ${x.lastPrice} USD` : ""}`, `coin:item:${x.id}`)]); rows.push([inlineButton("Add coin", "watchlist:add_coin"), inlineButton("Back to menu", "menu:main")]); await ctx.reply("Your watchlist", { reply_markup: inlineKeyboard(rows) }); }
+composer.callbackQuery("watchlist:view", async (ctx) => { await ctx.answerCallbackQuery(); await show(ctx); });
+composer.callbackQuery(/^coin:item:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); const s = await snapshot(); const item = (s.items[userId(ctx)] ?? []).find((x) => x.id === ctx.match[1]); if (!item) { await ctx.reply("That coin is no longer on your watchlist."); return; } await ctx.reply(`${item.ticker}${item.lastPrice ? ` · ${item.lastPrice} USD` : ""}`, { reply_markup: inlineKeyboard([[inlineButton("Add price alert", `alert:price:${item.id}`), inlineButton("Add percent alert", `alert:percent:${item.id}`)], [inlineButton("Edit", `coin:edit:${item.id}`), inlineButton("Delete", `coin:delete:${item.id}`)], [inlineButton("Back to list", "watchlist:view")]]) }); });
+composer.callbackQuery(/^coin:edit:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); ctx.session.flow = { kind: "edit", itemId: ctx.match[1] }; await ctx.reply("Enter the replacement ticker.", { reply_markup: { force_reply: true, input_field_placeholder: "Ticker symbol" } }); });
+composer.callbackQuery(/^coin:delete:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await removeItem(ctx, ctx.match[1]); await ctx.reply("The coin was removed from your watchlist.", { reply_markup: inlineKeyboard([[inlineButton("My list", "watchlist:view")]]) }); });
 export default composer;
