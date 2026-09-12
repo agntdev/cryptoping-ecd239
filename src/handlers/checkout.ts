@@ -9,6 +9,7 @@ import {
   clearCheckoutDraft,
   snapshot,
   userId,
+  getCheckoutPricing,
   PAYMENT_METHODS,
   DELIVERY_METHODS,
   applyPromoCode,
@@ -67,7 +68,6 @@ async function deliveryPrompt(ctx: Ctx) {
 }
 
 async function summary(ctx: Ctx) {
-  const draft = await getCheckoutDraft(ctx);
   const state = await snapshot();
   const lines = state.carts[userId(ctx)] ?? [];
   const products = new Map(state.catalog.map((product) => [product.id, product]));
@@ -78,16 +78,21 @@ async function summary(ctx: Ctx) {
     return `${product.name} — ${formatPrice(product.price, product.currency)} × ${line.quantity} = ${formatPrice(product.price * line.quantity, product.currency)}`;
   }).filter((line): line is string => Boolean(line));
   const first = lines.map((line) => products.get(line.productId)).find(Boolean);
-  const total = lines.reduce((sum, line) => {
-    const product = products.get(line.productId);
-    return sum + (product ? product.price * line.quantity : 0);
-  }, 0);
+  const pricing = await getCheckoutPricing(ctx);
+  const draft = await saveCheckoutDraft(ctx, {
+    itemsSubtotal: pricing.itemsSubtotal,
+    appliedPromoCodeId: pricing.promo?.id,
+    appliedDiscountPercent: pricing.promo?.discountPercent,
+    discountAmount: pricing.discountAmount,
+    finalTotal: pricing.finalTotal,
+  });
   const currency = first?.currency ?? "RUB";
   const text = [
     "Проверьте заказ",
     ...details,
-    `Стоимость товаров: ${formatPrice(total, currency)}`,
-    `Итого: ${formatPrice(draft?.finalTotal ?? total, currency)}`,
+    `Стоимость товаров: ${formatPrice(pricing.itemsSubtotal, currency)}`,
+    ...(pricing.promo ? [`Скидка по промокоду: -${pricing.discountPercent}% (-${formatPrice(pricing.discountAmount, currency)})`] : []),
+    `Итого: ${formatPrice(pricing.finalTotal, currency)}`,
     "",
     `Имя: ${draft?.name ?? "—"}`,
     `Телефон: ${draft?.phone ?? "—"}`,
