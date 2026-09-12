@@ -11,6 +11,7 @@ export type Flow =
   | { kind: "catalog" }
   | { kind: "category"; categoryId: string }
   | { kind: "cart"; returnProductId?: string; returnCategoryId?: string }
+  | { kind: "checkout"; step: "name" | "phone" | "city" | "address" | "summary"; editing?: boolean }
   | { kind: "category-create"; retried?: boolean }
   | { kind: "product-create"; categoryId: string; step: "name" | "photo" | "description" | "price" | "availability"; name?: string; photo?: string; description?: string; price?: number; availability?: "in_stock" | "out_of_stock"; stockCount?: number }
   | { kind: "product-edit"; productId: string; categoryId: string; step: "name" | "photo" | "description" | "price" | "availability" | "field"; field?: "name" | "photo" | "description" | "price" | "availability" | "category"; name?: string; photo?: string; description?: string; price?: number; availability?: "in_stock" | "out_of_stock"; stockCount?: number }
@@ -21,10 +22,13 @@ export interface Item { id: string; ticker: string; name: string; addedAt: numbe
 export interface CatalogProduct { id: string; categoryId: string; name: string; photo?: string; price: number; currency: string; description: string; availability: "in_stock" | "out_of_stock"; stockCount?: number; createdAt: number; updatedAt: number; }
 export interface CatalogCategory { id: string; name: string; }
 export interface CartLine { productId: string; quantity: number; unitPrice?: number; catalogUpdatedAt?: number; }
-export interface Order { id: string; lines: CartLine[]; subtotal: number; currency: string; createdAt: number; status: "pending" | "paid" | "cancelled"; }
+export interface OrderLine { productId: string; name: string; unitPrice: number; quantity: number; subtotal: number; }
+export interface CustomerData { name: string; phone: string; city: string; address: string; }
+export interface Order { id: string; userId: string; createdAt: number; lines: OrderLine[]; totalAmount: number; currency: string; customer: CustomerData; status: "pending" | "paid" | "cancelled"; }
+export interface CheckoutDraft { name?: string; phone?: string; city?: string; address?: string; updatedAt: number; }
 export interface Alert { id: string; itemId: string; type: "threshold" | "percent"; price?: number; direction?: "above" | "below"; percent?: number; window?: string; baseline?: number; createdAt: number; lastTriggered?: number; cooldownHours: number; enabled: boolean; }
 export interface Queued { id: string; itemId: string; ticker: string; detectedAt: number; note: string; }
-export interface State { version: 1; users: Record<string, Profile>; items: Record<string, Item[]>; alerts: Record<string, Alert[]>; queued: Record<string, Queued[]>; catalog: CatalogProduct[]; categories: CatalogCategory[]; carts: Record<string, CartLine[]>; orders: Record<string, Order[]>; metrics: { triggers: Record<string, number>; errors: number }; config: { cooldown: number; hysteresis: number; percentWindow: string; topN: number }; }
+export interface State { version: 1; users: Record<string, Profile>; items: Record<string, Item[]>; alerts: Record<string, Alert[]>; queued: Record<string, Queued[]>; catalog: CatalogProduct[]; categories: CatalogCategory[]; carts: Record<string, CartLine[]>; orders: Record<string, Order[]>; checkoutDrafts: Record<string, CheckoutDraft>; metrics: { triggers: Record<string, number>; errors: number }; config: { cooldown: number; hysteresis: number; percentWindow: string; topN: number }; }
 
 let adapter: StorageAdapter<unknown> | undefined;
 let clock = () => Date.now();
@@ -42,7 +46,7 @@ const initialProducts: CatalogProduct[] = [
   { id: "books:design-book", categoryId: "books", name: "Книга о дизайне", photo: "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=640", description: "Практическое введение в принципы дизайна.", price: 1290, currency: "RUB", availability: "out_of_stock", createdAt: 0, updatedAt: 0 },
   { id: "home-and-garden:planter", categoryId: "home-and-garden", name: "Керамическое кашпо", photo: "https://images.unsplash.com/photo-1485955900006-10f4d324d411?w=640", description: "Керамическое кашпо для домашних растений.", price: 1890, currency: "RUB", availability: "in_stock", createdAt: 0, updatedAt: 0 },
 ];
-const empty = (): State => ({ version: 1, users: {}, items: {}, alerts: {}, queued: {}, catalog: initialProducts.map((product) => ({ ...product })), categories: initialCategories.map((category) => ({ ...category })), carts: {}, orders: {}, metrics: { triggers: {}, errors: 0 }, config: { cooldown: 6, hysteresis: 0.5, percentWindow: "1h", topN: 10 } });
+const empty = (): State => ({ version: 1, users: {}, items: {}, alerts: {}, queued: {}, catalog: initialProducts.map((product) => ({ ...product })), categories: initialCategories.map((category) => ({ ...category })), carts: {}, orders: {}, checkoutDrafts: {}, metrics: { triggers: {}, errors: 0 }, config: { cooldown: 6, hysteresis: 0.5, percentWindow: "1h", topN: 10 } });
 export const now = () => clock();
 export function setClockForTests(fn?: () => number) { clock = fn ?? (() => Date.now()); }
 export function configureDomainStore(next: StorageAdapter<unknown>) { adapter = next; }
@@ -50,7 +54,7 @@ async function read() {
   const saved = (await adapter?.read(KEY)) as Partial<State> | undefined;
   if (!saved) return empty();
   const catalog = (saved.catalog ?? empty().catalog).map((product) => ({ ...product, createdAt: product.createdAt ?? 0, updatedAt: product.updatedAt ?? product.createdAt ?? 0 }));
-  return { ...empty(), ...saved, catalog, categories: saved.categories ?? empty().categories, carts: saved.carts ?? {}, orders: saved.orders ?? {}, metrics: { ...empty().metrics, ...saved.metrics }, config: { ...empty().config, ...saved.config } } as State;
+  return { ...empty(), ...saved, catalog, categories: saved.categories ?? empty().categories, carts: saved.carts ?? {}, orders: saved.orders ?? {}, checkoutDrafts: saved.checkoutDrafts ?? {}, metrics: { ...empty().metrics, ...saved.metrics }, config: { ...empty().config, ...saved.config } } as State;
 }
 async function write(s: State) { if (!adapter) throw new Error("Store is not configured"); await adapter.write(KEY, s); }
 export async function transaction<T>(fn: (s: State) => T | Promise<T>): Promise<T> { const run = queue.then(async () => { const s = await read(); const result = await fn(s); await write(s); return result; }); queue = run.then(() => undefined, () => undefined); return run; }
@@ -118,3 +122,47 @@ export async function addToCart(ctx: Ctx, productId: string, quantity = 1) { ret
 export async function changeCartQuantity(ctx: Ctx, productId: string, delta: number) { return transaction((s) => { if (!Number.isInteger(delta) || delta === 0) return false; const lines = s.carts[userId(ctx)] ?? []; const line = lines.find((entry) => entry.productId === productId); if (!line) return false; line.quantity += delta; if (line.quantity <= 0) s.carts[userId(ctx)] = lines.filter((entry) => entry.productId !== productId); return true; }); }
 export async function removeFromCart(ctx: Ctx, productId: string) { return transaction((s) => { const lines = s.carts[userId(ctx)] ?? []; const before = lines.length; s.carts[userId(ctx)] = lines.filter((entry) => entry.productId !== productId); return s.carts[userId(ctx)].length !== before; }); }
 export async function clearCart(ctx: Ctx) { return transaction((s) => { s.carts[userId(ctx)] = []; }); }
+
+export async function getCheckoutDraft(ctx: Ctx) {
+  return (await snapshot()).checkoutDrafts[userId(ctx)];
+}
+
+export async function saveCheckoutDraft(ctx: Ctx, patch: Partial<Omit<CheckoutDraft, "updatedAt">>) {
+  return transaction((s) => {
+    const id = userId(ctx);
+    const draft = s.checkoutDrafts[id] ?? (s.checkoutDrafts[id] = { updatedAt: now() });
+    Object.assign(draft, patch, { updatedAt: now() });
+    return { ...draft };
+  });
+}
+
+export async function clearCheckoutDraft(ctx: Ctx) {
+  return transaction((s) => { delete s.checkoutDrafts[userId(ctx)]; });
+}
+
+export async function createOrderFromCheckout(ctx: Ctx, customer: CustomerData) {
+  return transaction((s) => {
+    const uid = userId(ctx);
+    const cart = s.carts[uid] ?? [];
+    const products = new Map(s.catalog.map((product) => [product.id, product]));
+    const lines: OrderLine[] = [];
+    for (const line of cart) {
+      const product = products.get(line.productId);
+      if (!product || product.availability !== "in_stock") return undefined;
+      lines.push({ productId: product.id, name: product.name, unitPrice: product.price, quantity: line.quantity, subtotal: product.price * line.quantity });
+    }
+    if (!lines.length) return undefined;
+    const createdAt = now();
+    const date = new Date(createdAt);
+    const stamp = date.toISOString().replace(/[-:TZ.]/g, "").slice(0, 14);
+    const existing = s.orders[uid] ?? (s.orders[uid] = []);
+    let id = `ORD-${stamp}`;
+    let suffix = 2;
+    while (existing.some((order) => order.id === id)) id = `ORD-${stamp}-${suffix++}`;
+    const order: Order = { id, userId: uid, createdAt, lines, totalAmount: lines.reduce((sum, line) => sum + line.subtotal, 0), currency: products.get(lines[0].productId)!.currency, customer, status: "pending" };
+    existing.push(order);
+    s.carts[uid] = [];
+    delete s.checkoutDrafts[uid];
+    return order;
+  });
+}
