@@ -45,7 +45,7 @@ async function ordersList(ctx: Ctx, page = 0) {
   }
 }
 
-async function orderDetail(ctx: Ctx, orderId: string) {
+export async function orderDetail(ctx: Ctx, orderId: string) {
   const order = await getOrder(orderId);
   if (!order) return ctx.reply("Заказ не найден.");
   const lines = order.lines.map((line) =>
