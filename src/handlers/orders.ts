@@ -1,7 +1,7 @@
 import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
 import { inlineButton, inlineKeyboard, requireOwner } from "../toolkit/index.js";
-import { getOrder, listOrders } from "../store.js";
+import { getOrder, listOrders, ORDER_STATUSES, updateOrderStatus, type OrderStatus } from "../store.js";
 import { formatPrice } from "../locale.js";
 
 const composer = new Composer<Ctx>();
@@ -27,7 +27,7 @@ async function ordersList(ctx: Ctx, page = 0) {
   const rows: ReturnType<typeof inlineButton>[][] = [];
   for (const order of result.orders) {
     rows.push([inlineButton(
-      `${order.id} · ${formatPrice(order.totalAmount, order.currency)}`,
+      `${order.id} · ${order.status} · ${formatPrice(order.totalAmount, order.currency)}`,
       `admin:order:view:${order.id}`,
     )]);
   }
@@ -39,7 +39,7 @@ async function ordersList(ctx: Ctx, page = 0) {
   await ctx.reply(text, { reply_markup: inlineKeyboard(rows) });
   for (const order of result.orders) {
     await ctx.reply(
-      `${order.id}\n${dateTime(order.createdAt)}\n${order.customer.name}\n${order.customer.phone}\n${order.customer.city}\n${order.customer.address}\nИтого: ${formatPrice(order.totalAmount, order.currency)}`,
+      `${order.id}\n${order.status}\n${dateTime(order.createdAt)}\n${order.customer.name}\n${order.customer.phone}\n${order.customer.city}\n${order.customer.address}\nИтого: ${formatPrice(order.totalAmount, order.currency)}`,
       { reply_markup: inlineKeyboard([[inlineButton("Открыть заказ", `admin:order:view:${order.id}`)]]) },
     );
   }
@@ -53,6 +53,7 @@ async function orderDetail(ctx: Ctx, orderId: string) {
   );
   const text = [
     `Заказ ${order.id}`,
+    `Статус: ${order.status}`,
     `Создан: ${dateTime(order.createdAt)}`,
     `Покупатель: ${order.customer.name}`,
     `Телефон: ${order.customer.phone}`,
@@ -64,7 +65,8 @@ async function orderDetail(ctx: Ctx, orderId: string) {
     "",
     `Итого: ${formatPrice(order.totalAmount, order.currency)}`,
   ].join("\n");
-  await ctx.reply(text, { reply_markup: inlineKeyboard([[inlineButton("⬅️ К заказам", "admin:orders")]]) });
+  const statusButtons = ORDER_STATUSES.map((status) => [inlineButton(status, `admin:order:status:${order.id}:${ORDER_STATUSES.indexOf(status)}`)]);
+  await ctx.reply(text, { reply_markup: inlineKeyboard([...statusButtons, [inlineButton("⬅️ К заказам", "admin:orders")]]) });
 }
 
 composer.callbackQuery("admin:orders", async (ctx) => {
@@ -83,6 +85,16 @@ composer.callbackQuery(/^admin:order:view:(.+)$/, async (ctx) => {
   await ctx.answerCallbackQuery();
   if (!(await owner(ctx))) return;
   await orderDetail(ctx, ctx.match[1]);
+});
+
+composer.callbackQuery(/^admin:order:status:(.+):(\d+)$/, async (ctx) => {
+  await ctx.answerCallbackQuery();
+  if (!(await owner(ctx))) return;
+  const status = ORDER_STATUSES[Number(ctx.match[2])] as OrderStatus | undefined;
+  if (!status) return ctx.reply("Не удалось изменить статус заказа.");
+  const order = await updateOrderStatus(ctx.match[1], status);
+  if (!order) return ctx.reply("Заказ не найден.");
+  await ctx.reply(`Статус заказа обновлён: ${order.status}`, { reply_markup: inlineKeyboard([[inlineButton("Открыть заказ", `admin:order:view:${order.id}`)]]) });
 });
 
 export default composer;
