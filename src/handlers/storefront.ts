@@ -7,7 +7,7 @@ import { force, menuKeyboard } from "../storefront.js";
 
 const composer = new Composer<Ctx>();
 
-function homeMarkup() { return { reply_markup: menuKeyboard() }; }
+function homeMarkup(ctx: Ctx) { return { reply_markup: menuKeyboard(ctx) }; }
 
 async function catalog(ctx: Ctx) {
   ctx.session.flow = { kind: "catalog" };
@@ -64,7 +64,7 @@ export async function cart(ctx: Ctx) {
   const state = await snapshot();
   const lines = state.carts[userId(ctx)] ?? [];
   if (!lines.length) {
-    await ctx.reply("Корзина пуста. Откройте каталог, чтобы добавить товары.", { ...homeMarkup(), reply_markup: menuKeyboard() });
+    await ctx.reply("Корзина пуста. Откройте каталог, чтобы добавить товары.", homeMarkup(ctx));
     return;
   }
   const products = new Map(state.catalog.map((product) => [product.id, product]));
@@ -76,7 +76,7 @@ export async function cart(ctx: Ctx) {
     return product.name + " × " + line.quantity + " — " + formatPrice(product.price * line.quantity, product.currency);
   }).filter((line): line is string => Boolean(line));
   if (!lines.length) {
-    await ctx.reply("Корзина пуста. Откройте каталог, чтобы добавить товары.", homeMarkup());
+    await ctx.reply("Корзина пуста. Откройте каталог, чтобы добавить товары.", homeMarkup(ctx));
     return;
   }
   for (const line of lines) {
@@ -127,7 +127,7 @@ async function orderDetail(ctx: Ctx, orderId: string) {
 }
 
 async function help(ctx: Ctx) {
-  await ctx.reply("Выберите каталог, чтобы посмотреть товары. В корзине можно проверить состав заказа. В профиле сохраните контактные данные и адрес доставки. По вопросам обратитесь к владельцу магазина.", homeMarkup());
+  await ctx.reply("Выберите каталог, чтобы посмотреть товары. В корзине можно проверить состав заказа. В профиле сохраните контактные данные и адрес доставки. По вопросам обратитесь к владельцу магазина.", homeMarkup(ctx));
 }
 
 composer.on("message:text", async (ctx, next) => {
@@ -137,7 +137,7 @@ composer.on("message:text", async (ctx, next) => {
   if (text === "⬅️ Назад") {
     if (flow?.kind === "category") return catalog(ctx);
     ctx.session.flow = undefined;
-    return ctx.reply("Добро пожаловать. Выберите раздел в меню ниже.", homeMarkup());
+    return ctx.reply("Добро пожаловать. Выберите раздел в меню ниже.", homeMarkup(ctx));
   }
   if (flow?.kind === "catalog") {
     const selected = (await listCatalogCategories()).find((entry) => entry.name === text);
@@ -162,12 +162,12 @@ composer.callbackQuery("shop:orders", async (ctx) => { await ctx.answerCallbackQ
 composer.callbackQuery("shop:profile", async (ctx) => { await ctx.answerCallbackQuery(); await profile(ctx); });
 composer.callbackQuery(/^profile:order:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await orderDetail(ctx, ctx.match[1]); });
 composer.callbackQuery("shop:help", async (ctx) => { await ctx.answerCallbackQuery(); await help(ctx); });
-composer.callbackQuery("shop:home", async (ctx) => { await ctx.answerCallbackQuery(); await ctx.reply("Выберите раздел в меню ниже.", homeMarkup()); });
-composer.callbackQuery(/^shop:add:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); const added = await addToCart(ctx, ctx.match[1]); await ctx.reply(added ? "Товар добавлен в корзину." : "Этот товар больше недоступен. Откройте каталог ещё раз.", homeMarkup()); });
+composer.callbackQuery("shop:home", async (ctx) => { await ctx.answerCallbackQuery(); await ctx.reply("Выберите раздел в меню ниже.", homeMarkup(ctx)); });
+composer.callbackQuery(/^shop:add:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); const added = await addToCart(ctx, ctx.match[1]); await ctx.reply(added ? "Товар добавлен в корзину." : "Этот товар больше недоступен. Откройте каталог ещё раз.", homeMarkup(ctx)); });
 composer.callbackQuery(/^catalog:cart:add:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); const product = await getCatalogProduct(ctx.match[1]); const added = await addToCart(ctx, ctx.match[1]); await ctx.reply(added ? "Товар добавлен в корзину." : "Этот товар больше недоступен. Откройте каталог ещё раз.", { reply_markup: inlineKeyboard([[inlineButton("🛒 Открыть корзину", "shop:cart:from:" + (product?.id ?? ""))], [inlineButton("⬅️ Назад", "catalog:products:" + (product?.categoryId ?? ""))]]) }); });
 composer.callbackQuery(/^cart:(inc|dec|remove):(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); const action = ctx.match[1]; const productId = ctx.match[2]; if (action === "remove") await removeFromCart(ctx, productId); else await changeCartQuantity(ctx, productId, action === "inc" ? 1 : -1); await cart(ctx); });
 composer.callbackQuery("cart:back", async (ctx) => { await ctx.answerCallbackQuery(); const flow = ctx.session.flow; if (flow?.kind === "cart" && flow.returnProductId) return productDetail(ctx, flow.returnProductId); if (flow?.kind === "cart" && flow.returnCategoryId) return productList(ctx, flow.returnCategoryId); await catalog(ctx); });
-composer.callbackQuery("shop:clear", async (ctx) => { await ctx.answerCallbackQuery(); await clearCart(ctx); await ctx.reply("Корзина очищена.", homeMarkup()); });
+composer.callbackQuery("shop:clear", async (ctx) => { await ctx.answerCallbackQuery(); await clearCart(ctx); await ctx.reply("Корзина очищена.", homeMarkup(ctx)); });
 composer.callbackQuery(/^catalog:product:view:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await productDetail(ctx, ctx.match[1]); });
 composer.callbackQuery(/^catalog:back:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await catalog(ctx); });
 composer.callbackQuery(/^catalog:category:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await category(ctx, ctx.match[1]); });

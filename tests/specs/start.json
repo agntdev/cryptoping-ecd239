@@ -13,11 +13,9 @@
                 "inline_keyboard": [
                   [{ "text": "🛍 Каталог", "callback_data": "shop:catalog" }],
                   [{ "text": "🛒 Корзина", "callback_data": "shop:cart" }],
-                  [{ "text": "Список наблюдения", "callback_data": "watchlist:view" }],
-                  [{ "text": "Оповещения", "callback_data": "alerts:menu" }],
-                  [{ "text": "Проверить цену", "callback_data": "price:menu" }],
-                  [{ "text": "Настройки", "callback_data": "user:settings" }],
-                  [{ "text": "👤 Профиль", "callback_data": "shop:profile" }]
+                  [{ "text": "📦 Мои заказы", "callback_data": "shop:orders" }],
+                  [{ "text": "👤 Профиль", "callback_data": "shop:profile" }],
+                  [{ "text": "ℹ️ Помощь", "callback_data": "shop:help" }]
                 ]
               }
             }
