@@ -11,6 +11,7 @@ import {
   userId,
   PAYMENT_METHODS,
   DELIVERY_METHODS,
+  applyPromoCode,
   type PaymentMethod,
   type DeliveryMethod,
 } from "../store.js";
@@ -86,7 +87,7 @@ async function summary(ctx: Ctx) {
     "Проверьте заказ",
     ...details,
     `Стоимость товаров: ${formatPrice(total, currency)}`,
-    `Итого: ${formatPrice(total, currency)}`,
+    `Итого: ${formatPrice(draft?.finalTotal ?? total, currency)}`,
     "",
     `Имя: ${draft?.name ?? "—"}`,
     `Телефон: ${draft?.phone ?? "—"}`,
@@ -97,10 +98,16 @@ async function summary(ctx: Ctx) {
   ].join("\n");
   ctx.session.flow = { kind: "checkout", step: "summary" };
   await ctx.reply(text, { reply_markup: inlineKeyboard([
+    [inlineButton("🎟 Ввести промокод", "checkout:promo")],
     [inlineButton("✅ Подтвердить заказ", "checkout:confirm")],
     [inlineButton("✏️ Изменить данные", "checkout:edit")],
     [inlineButton("❌ Отменить", "checkout:cancel")],
   ]) });
+}
+
+async function promoPrompt(ctx: Ctx) {
+  ctx.session.flow = { kind: "checkout", step: "promo" };
+  await ctx.reply("Введите промокод.", { reply_markup: inlineKeyboard([[inlineButton("Отмена", "checkout:cancel")]]) });
 }
 
 async function begin(ctx: Ctx) {
@@ -123,9 +130,12 @@ composer.callbackQuery("checkout:edit", async (ctx) => {
     [inlineButton("Город", "checkout:edit:city"), inlineButton("Адрес", "checkout:edit:address")],
     [inlineButton("Способ получения", "checkout:edit:delivery")],
     [inlineButton("Способ оплаты", "checkout:edit:payment")],
+    [inlineButton("🎟 Ввести промокод", "checkout:promo")],
     [inlineButton("❌ Отменить", "checkout:cancel")],
   ]) });
 });
+
+composer.callbackQuery("checkout:promo", async (ctx) => { await ctx.answerCallbackQuery(); await promoPrompt(ctx); });
 
 composer.callbackQuery(/^checkout:edit:(name|phone|city|address)$/, async (ctx) => {
   await ctx.answerCallbackQuery();
@@ -184,7 +194,7 @@ composer.callbackQuery("checkout:confirm", async (ctx) => {
   if (!order) return ctx.reply("Не удалось оформить заказ: один из товаров больше недоступен. Проверьте корзину.");
   ctx.session.flow = { kind: "cart" };
   const items = order.lines.map((line) => `${line.name} × ${line.quantity} — ${formatPrice(line.subtotal, order.currency)}`).join("\n");
-  await ctx.reply(`Заказ ${order.id} создан.\n\n${items}\nСтоимость товаров: ${formatPrice(order.totalAmount, order.currency)}\nИтого: ${formatPrice(order.totalAmount, order.currency)}\n\nДоставка: ${order.customer.name}, ${order.customer.phone}, ${order.customer.city}, ${order.customer.address}\nСпособ получения: ${order.delivery_method.label}\nСпособ оплаты: ${order.payment_method.label}`);
+  await ctx.reply(`Заказ ${order.id} создан.\n\n${items}\nСтоимость товаров: ${formatPrice(order.lines.reduce((sum, line) => sum + line.subtotal, 0), order.currency)}${order.appliedPromoCode ? `\nПромокод: ${order.appliedPromoCode}\nСкидка: -${order.appliedDiscountPercent}% (-${formatPrice(order.discountAmount ?? 0, order.currency)})` : ""}\nИтого: ${formatPrice(order.finalTotal ?? order.totalAmount, order.currency)}\n\nДоставка: ${order.customer.name}, ${order.customer.phone}, ${order.customer.city}, ${order.customer.address}\nСпособ получения: ${order.delivery_method.label}\nСпособ оплаты: ${order.payment_method.label}`);
 });
 
 composer.on("message:text", async (ctx, next) => {
@@ -201,6 +211,18 @@ composer.on("message:text", async (ctx, next) => {
   }
   if (flow.step === "payment") {
     await paymentPrompt(ctx);
+    return;
+  }
+  if (flow.step === "promo") {
+    const result = await applyPromoCode(ctx, value);
+    if (result.status === "invalid") return ctx.reply("Промокод недействителен или отключён.");
+    if (result.status === "already") return ctx.reply("Этот промокод уже применён к заказу.");
+    const draft = result.draft;
+    const percent = draft.appliedDiscountPercent ?? 0;
+    const discount = draft.discountAmount ?? 0;
+    const total = draft.finalTotal ?? 0;
+    ctx.session.flow = { kind: "checkout", step: "summary" };
+    await ctx.reply(`Промокод применён: -${percent}% (-${formatPrice(discount, "RUB")}): новый итог ${formatPrice(total, "RUB")}.`, { reply_markup: inlineKeyboard([[inlineButton("Продолжить оформление", "checkout:edit")]]) });
     return;
   }
   if (flow.step === "delivery") {

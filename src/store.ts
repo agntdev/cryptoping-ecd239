@@ -11,7 +11,9 @@ export type Flow =
   | { kind: "catalog" }
   | { kind: "category"; categoryId: string }
   | { kind: "cart"; returnProductId?: string; returnCategoryId?: string }
-  | { kind: "checkout"; step: "name" | "phone" | "city" | "address" | "delivery" | "payment" | "summary"; editing?: boolean }
+  | { kind: "checkout"; step: "name" | "phone" | "city" | "address" | "delivery" | "payment" | "promo" | "summary"; editing?: boolean }
+  | { kind: "promo-create"; step: "code" | "discount"; code?: string }
+  | { kind: "promo-edit"; id: string; step: "code" | "discount"; code?: string; discount?: number }
   | { kind: "category-create"; retried?: boolean }
   | { kind: "product-create"; categoryId: string; step: "name" | "photo" | "description" | "price" | "availability"; name?: string; photo?: string; description?: string; price?: number; availability?: "in_stock" | "out_of_stock"; stockCount?: number }
   | { kind: "product-edit"; productId: string; categoryId: string; step: "name" | "photo" | "description" | "price" | "availability" | "field"; field?: "name" | "photo" | "description" | "price" | "availability" | "category"; name?: string; photo?: string; description?: string; price?: number; availability?: "in_stock" | "out_of_stock"; stockCount?: number }
@@ -47,17 +49,18 @@ export const ORDER_STATUS_NAMES: Record<OrderStatus, string> = {
   "✅ Выполнен": "Выполнен",
   "❌ Отменён": "Отменён",
 };
-export interface Order { id: string; userId: string; createdAt: number; lines: OrderLine[]; totalAmount: number; currency: string; customer: CustomerData; delivery_method: DeliveryMethod; payment_method: PaymentMethod; status: OrderStatus; }
+export interface Order { id: string; userId: string; createdAt: number; lines: OrderLine[]; totalAmount: number; currency: string; customer: CustomerData; delivery_method: DeliveryMethod; payment_method: PaymentMethod; status: OrderStatus; appliedPromoCode?: string; appliedDiscountPercent?: number; discountAmount?: number; finalTotal: number; }
+export interface PromoCode { id: string; code: string; discountPercent: number; active: boolean; createdAt: number; updatedAt: number; createdByAdminId?: string; }
 function normalizeOrderStatus(status: unknown): OrderStatus {
   if (ORDER_STATUSES.includes(status as OrderStatus)) return status as OrderStatus;
   if (status === "paid") return "✅ Выполнен";
   if (status === "cancelled") return "❌ Отменён";
   return "🆕 Новый";
 }
-export interface CheckoutDraft { name?: string; phone?: string; city?: string; address?: string; delivery_method?: DeliveryMethod; payment_method?: PaymentMethod; updatedAt: number; }
+export interface CheckoutDraft { name?: string; phone?: string; city?: string; address?: string; delivery_method?: DeliveryMethod; payment_method?: PaymentMethod; promoCode?: string; appliedDiscountPercent?: number; discountAmount?: number; finalTotal?: number; updatedAt: number; }
 export interface Alert { id: string; itemId: string; type: "threshold" | "percent"; price?: number; direction?: "above" | "below"; percent?: number; window?: string; baseline?: number; createdAt: number; lastTriggered?: number; cooldownHours: number; enabled: boolean; }
 export interface Queued { id: string; itemId: string; ticker: string; detectedAt: number; note: string; }
-export interface State { version: 1; users: Record<string, Profile>; items: Record<string, Item[]>; alerts: Record<string, Alert[]>; queued: Record<string, Queued[]>; catalog: CatalogProduct[]; categories: CatalogCategory[]; carts: Record<string, CartLine[]>; orders: Record<string, Order[]>; checkoutDrafts: Record<string, CheckoutDraft>; metrics: { triggers: Record<string, number>; errors: number }; config: { cooldown: number; hysteresis: number; percentWindow: string; topN: number }; }
+export interface State { version: 1; users: Record<string, Profile>; items: Record<string, Item[]>; alerts: Record<string, Alert[]>; queued: Record<string, Queued[]>; catalog: CatalogProduct[]; categories: CatalogCategory[]; carts: Record<string, CartLine[]>; orders: Record<string, Order[]>; promoCodes: PromoCode[]; checkoutDrafts: Record<string, CheckoutDraft>; metrics: { triggers: Record<string, number>; errors: number }; config: { cooldown: number; hysteresis: number; percentWindow: string; topN: number }; }
 
 let adapter: StorageAdapter<unknown> | undefined;
 let clock = () => Date.now();
@@ -75,7 +78,7 @@ const initialProducts: CatalogProduct[] = [
   { id: "books:design-book", categoryId: "books", name: "Книга о дизайне", photo: "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=640", description: "Практическое введение в принципы дизайна.", price: 1290, currency: "RUB", availability: "out_of_stock", createdAt: 0, updatedAt: 0 },
   { id: "home-and-garden:planter", categoryId: "home-and-garden", name: "Керамическое кашпо", photo: "https://images.unsplash.com/photo-1485955900006-10f4d324d411?w=640", description: "Керамическое кашпо для домашних растений.", price: 1890, currency: "RUB", availability: "in_stock", createdAt: 0, updatedAt: 0 },
 ];
-const empty = (): State => ({ version: 1, users: {}, items: {}, alerts: {}, queued: {}, catalog: initialProducts.map((product) => ({ ...product })), categories: initialCategories.map((category) => ({ ...category })), carts: {}, orders: {}, checkoutDrafts: {}, metrics: { triggers: {}, errors: 0 }, config: { cooldown: 6, hysteresis: 0.5, percentWindow: "1h", topN: 10 } });
+const empty = (): State => ({ version: 1, users: {}, items: {}, alerts: {}, queued: {}, catalog: initialProducts.map((product) => ({ ...product })), categories: initialCategories.map((category) => ({ ...category })), carts: {}, orders: {}, promoCodes: [], checkoutDrafts: {}, metrics: { triggers: {}, errors: 0 }, config: { cooldown: 6, hysteresis: 0.5, percentWindow: "1h", topN: 10 } });
 export const now = () => clock();
 export function setClockForTests(fn?: () => number) { clock = fn ?? (() => Date.now()); }
 export function configureDomainStore(next: StorageAdapter<unknown>) { adapter = next; }
@@ -89,9 +92,10 @@ async function read() {
       ...order,
       status: normalizeOrderStatus(order.status),
       delivery_method: order.delivery_method ?? { value: "delivery_address", label: DELIVERY_METHODS.delivery_address },
+      finalTotal: order.finalTotal ?? order.totalAmount,
     })),
   ]));
-  return { ...empty(), ...saved, catalog, categories: saved.categories ?? empty().categories, carts: saved.carts ?? {}, orders, checkoutDrafts: saved.checkoutDrafts ?? {}, metrics: { ...empty().metrics, ...saved.metrics }, config: { ...empty().config, ...saved.config } } as State;
+  return { ...empty(), ...saved, catalog, categories: saved.categories ?? empty().categories, carts: saved.carts ?? {}, orders, promoCodes: saved.promoCodes ?? [], checkoutDrafts: saved.checkoutDrafts ?? {}, metrics: { ...empty().metrics, ...saved.metrics }, config: { ...empty().config, ...saved.config } } as State;
 }
 async function write(s: State) { if (!adapter) throw new Error("Store is not configured"); await adapter.write(KEY, s); }
 export async function transaction<T>(fn: (s: State) => T | Promise<T>): Promise<T> { const run = queue.then(async () => { const s = await read(); const result = await fn(s); await write(s); return result; }); queue = run.then(() => undefined, () => undefined); return run; }
@@ -177,6 +181,65 @@ export async function clearCheckoutDraft(ctx: Ctx) {
   return transaction((s) => { delete s.checkoutDrafts[userId(ctx)]; });
 }
 
+export function normalizePromoCode(code: string) {
+  return code.trim().toLocaleUpperCase();
+}
+
+export function validatePromoDiscount(value: number) {
+  return Number.isFinite(value) && value > 0 && value <= 100;
+}
+
+export function recalculateOrderTotal(subtotal: number, discountPercent = 0) {
+  const safeSubtotal = Math.max(0, Math.round(subtotal * 100) / 100);
+  const safePercent = validatePromoDiscount(discountPercent) ? discountPercent : 0;
+  const discountAmount = Math.round(safeSubtotal * safePercent / 100 * 100) / 100;
+  return { discountAmount, finalTotal: Math.max(0, Math.round((safeSubtotal - discountAmount) * 100) / 100) };
+}
+
+export async function listPromoCodes() { return (await snapshot()).promoCodes.map((promo) => ({ ...promo })); }
+
+export async function createPromoCode(ctx: Ctx, code: string, discountPercent: number) {
+  const normalized = normalizePromoCode(code);
+  if (!normalized || !validatePromoDiscount(discountPercent)) return undefined;
+  return transaction((s) => {
+    if (s.promoCodes.some((promo) => promo.code === normalized)) return undefined;
+    const timestamp = now();
+    const promo: PromoCode = { id: `promo:${timestamp}:${s.promoCodes.length}`, code: normalized, discountPercent, active: true, createdAt: timestamp, updatedAt: timestamp, createdByAdminId: userId(ctx) };
+    s.promoCodes.push(promo);
+    return promo;
+  });
+}
+
+export async function updatePromoCode(id: string, code: string, discountPercent: number) {
+  const normalized = normalizePromoCode(code);
+  if (!normalized || !validatePromoDiscount(discountPercent)) return undefined;
+  return transaction((s) => {
+    const promo = s.promoCodes.find((entry) => entry.id === id);
+    if (!promo || s.promoCodes.some((entry) => entry.id !== id && entry.code === normalized)) return undefined;
+    Object.assign(promo, { code: normalized, discountPercent, updatedAt: now() });
+    return promo;
+  });
+}
+
+export async function togglePromoCode(id: string) { return transaction((s) => { const promo = s.promoCodes.find((entry) => entry.id === id); if (!promo) return undefined; promo.active = !promo.active; promo.updatedAt = now(); return promo; }); }
+export async function deletePromoCode(id: string) { return transaction((s) => { const before = s.promoCodes.length; s.promoCodes = s.promoCodes.filter((promo) => promo.id !== id); return s.promoCodes.length !== before; }); }
+
+export async function applyPromoCode(ctx: Ctx, code: string) {
+  const normalized = normalizePromoCode(code);
+  return transaction((s) => {
+    const uid = userId(ctx);
+    const draft = s.checkoutDrafts[uid] ?? (s.checkoutDrafts[uid] = { updatedAt: now() });
+    if (draft.promoCode === normalized) return { status: "already" as const, draft: { ...draft } };
+    const promo = s.promoCodes.find((entry) => entry.code === normalized && entry.active);
+    if (!promo) return { status: "invalid" as const };
+    const products = new Map(s.catalog.map((product) => [product.id, product]));
+    const subtotal = (s.carts[uid] ?? []).reduce((sum, line) => { const product = products.get(line.productId); return sum + (product ? product.price * line.quantity : 0); }, 0);
+    const totals = recalculateOrderTotal(subtotal, promo.discountPercent);
+    Object.assign(draft, { promoCode: promo.code, appliedDiscountPercent: promo.discountPercent, discountAmount: totals.discountAmount, finalTotal: totals.finalTotal, updatedAt: now() });
+    return { status: "applied" as const, promo, draft: { ...draft } };
+  });
+}
+
 export async function createOrderFromCheckout(ctx: Ctx, customer: CustomerData, delivery_method: DeliveryMethod, payment_method: PaymentMethod) {
   return transaction((s) => {
     const uid = userId(ctx);
@@ -197,7 +260,11 @@ export async function createOrderFromCheckout(ctx: Ctx, customer: CustomerData, 
     let suffix = 2;
     const allOrders = Object.values(s.orders).flat();
     while (allOrders.some((order) => order.id === id)) id = `ORD-${stamp}-${suffix++}`;
-    const order: Order = { id, userId: uid, createdAt, lines, totalAmount: lines.reduce((sum, line) => sum + line.subtotal, 0), currency: products.get(lines[0].productId)!.currency, customer, delivery_method, payment_method, status: "🆕 Новый" };
+    const subtotal = lines.reduce((sum, line) => sum + line.subtotal, 0);
+    const draft = s.checkoutDrafts[uid];
+    const promo = draft?.promoCode ? s.promoCodes.find((entry) => entry.code === normalizePromoCode(draft.promoCode!) && entry.active) : undefined;
+    const totals = recalculateOrderTotal(subtotal, promo?.discountPercent ?? 0);
+    const order: Order = { id, userId: uid, createdAt, lines, totalAmount: totals.finalTotal, currency: products.get(lines[0].productId)!.currency, customer, delivery_method, payment_method, status: "🆕 Новый", appliedPromoCode: promo?.code, appliedDiscountPercent: promo?.discountPercent, discountAmount: totals.discountAmount, finalTotal: totals.finalTotal };
     existing.push(order);
     s.carts[uid] = [];
     delete s.checkoutDrafts[uid];
