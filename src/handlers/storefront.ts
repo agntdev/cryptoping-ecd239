@@ -60,7 +60,7 @@ async function productDetail(ctx: Ctx, productId: string) {
   else await ctx.reply(caption, { reply_markup: controls });
 }
 
-async function cart(ctx: Ctx) {
+export async function cart(ctx: Ctx) {
   const state = await snapshot();
   const lines = state.carts[userId(ctx)] ?? [];
   if (!lines.length) {
@@ -92,7 +92,7 @@ async function cart(ctx: Ctx) {
     else await ctx.reply(caption, { reply_markup: controls });
   }
   const totals = Object.entries(subtotals).map(([currency, value]) => formatPrice(value, currency)).join(", ");
-  await ctx.reply("Итого: " + (totals || "нет доступных товаров"), { reply_markup: inlineKeyboard([[inlineButton("⬅️ Назад", "cart:back")]]) });
+  await ctx.reply("Итого: " + (totals || "нет доступных товаров"), { reply_markup: inlineKeyboard([[inlineButton("Оформить заказ", "checkout:start")], [inlineButton("⬅️ Назад", "cart:back")]]) });
 }
 
 async function profile(ctx: Ctx) {
@@ -106,7 +106,7 @@ async function orders(ctx: Ctx) {
   const state = await snapshot();
   const list = state.orders[userId(ctx)] ?? [];
   if (!list.length) { await ctx.reply("У вас нет заказов", homeMarkup()); return; }
-  await ctx.reply("Ваши заказы\n" + list.map((order) => "Заказ " + order.id + " — " + formatPrice(order.subtotal, order.currency) + " — " + order.status).join("\n"), homeMarkup());
+  await ctx.reply("Ваши заказы\n" + list.map((order) => "Заказ " + order.id + " — " + formatPrice(order.totalAmount, order.currency) + " — " + order.status).join("\n"), homeMarkup());
 }
 
 async function help(ctx: Ctx) {

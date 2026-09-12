@@ -1,0 +1,38 @@
+[
+  {
+    "name": "Оформление заказа по шагам",
+    "steps": [
+      {"send":{"callback":"catalog:cart:add:electronics:desk-lamp"},"expect":[{"method":"sendMessage","payload":{"text":"Товар добавлен в корзину."}}]},
+      {"send":{"callback":"checkout:start"},"expect":[{"method":"sendMessage","payload":{"text":"Введите полное имя получателя."}}]},
+      {"send":{"text":"Иван Петров"},"expect":[{"method":"sendMessage","payload":{"text":"Введите номер телефона."}}]},
+      {"send":{"text":"+7 900 123-45-67"},"expect":[{"method":"sendMessage","payload":{"text":"Введите город доставки."}}]},
+      {"send":{"text":"Москва"},"expect":[{"method":"sendMessage","payload":{"text":"Введите адрес доставки."}}]},
+      {"send":{"text":"ул. Тверская, 1"},"expect":[{"method":"sendMessage","payload":{"reply_markup":{"inline_keyboard":[[{"text":"✅ Подтвердить заказ","callback_data":"checkout:confirm"}],[{"text":"✏️ Изменить данные","callback_data":"checkout:edit"}],[{"text":"❌ Отменить","callback_data":"checkout:cancel"}]]}}}]},
+      {"send":{"callback":"checkout:confirm"},"expect":[{"method":"sendMessage"}]}
+    ]
+  },
+  {
+    "name": "Изменение данных заказа",
+    "steps": [
+      {"send":{"callback":"catalog:cart:add:electronics:desk-lamp"},"expect":[{"method":"sendMessage","payload":{"text":"Товар добавлен в корзину."}}]},
+      {"send":{"callback":"checkout:start"},"expect":[{"method":"sendMessage","payload":{"text":"Введите полное имя получателя."}}]},
+      {"send":{"text":"Анна Смирнова"},"expect":[{"method":"sendMessage","payload":{"text":"Введите номер телефона."}}]},
+      {"send":{"text":"+7 901 000-00-00"},"expect":[{"method":"sendMessage","payload":{"text":"Введите город доставки."}}]},
+      {"send":{"text":"Казань"},"expect":[{"method":"sendMessage","payload":{"text":"Введите адрес доставки."}}]},
+      {"send":{"text":"ул. Баумана, 2"},"expect":[{"method":"sendMessage"}]},
+      {"send":{"callback":"checkout:edit"},"expect":[{"method":"sendMessage","payload":{"text":"Выберите данные для изменения."}}]},
+      {"send":{"callback":"checkout:edit:city"},"expect":[{"method":"sendMessage","payload":{"text":"Введите город доставки."}}]},
+      {"send":{"text":"Самара"},"expect":[{"method":"sendMessage"}]}
+    ]
+  },
+  {
+    "name": "Отмена оформления сохраняет корзину",
+    "steps": [
+      {"send":{"callback":"catalog:cart:add:electronics:desk-lamp"},"expect":[{"method":"sendMessage","payload":{"text":"Товар добавлен в корзину."}}]},
+      {"send":{"callback":"checkout:start"},"expect":[{"method":"sendMessage","payload":{"text":"Введите полное имя получателя."}}]},
+      {"send":{"text":"Пётр Иванов"},"expect":[{"method":"sendMessage","payload":{"text":"Введите номер телефона."}}]},
+      {"send":{"callback":"checkout:cancel"},"expect":[{"method":"sendMessage","payload":{"text":"Оформление отменено. Корзина сохранена."}}]},
+      {"send":{"callback":"checkout:start"},"expect":[{"method":"sendMessage","payload":{"text":"Введите полное имя получателя."}}]}
+    ]
+  }
+]
