@@ -12,6 +12,7 @@
               "reply_markup": {
                 "inline_keyboard": [
                   [{ "text": "🛍 Каталог", "callback_data": "shop:catalog" }],
+                  [{ "text": "🛒 Корзина", "callback_data": "shop:cart" }],
                   [{ "text": "Список наблюдения", "callback_data": "watchlist:view" }],
                   [{ "text": "Оповещения", "callback_data": "alerts:menu" }],
                   [{ "text": "Проверить цену", "callback_data": "price:menu" }],

@@ -10,6 +10,7 @@ export type Flow =
   | { kind: "profile"; field: "name" | "email" | "address" | "phone" }
   | { kind: "catalog" }
   | { kind: "category"; categoryId: string }
+  | { kind: "cart"; returnProductId?: string; returnCategoryId?: string }
   | { kind: "category-create"; retried?: boolean }
   | { kind: "product-create"; categoryId: string; step: "name" | "photo" | "description" | "price" | "availability"; name?: string; photo?: string; description?: string; price?: number; availability?: "in_stock" | "out_of_stock"; stockCount?: number }
   | { kind: "product-edit"; productId: string; categoryId: string; step: "name" | "photo" | "description" | "price" | "availability" | "field"; field?: "name" | "photo" | "description" | "price" | "availability" | "category"; name?: string; photo?: string; description?: string; price?: number; availability?: "in_stock" | "out_of_stock"; stockCount?: number }
@@ -19,7 +20,7 @@ export interface Profile { id: string; timezone: string; fiat: string; quietStar
 export interface Item { id: string; ticker: string; name: string; addedAt: number; lastPrice?: number; }
 export interface CatalogProduct { id: string; categoryId: string; name: string; photo?: string; price: number; currency: string; description: string; availability: "in_stock" | "out_of_stock"; stockCount?: number; createdAt: number; updatedAt: number; }
 export interface CatalogCategory { id: string; name: string; }
-export interface CartLine { productId: string; quantity: number; }
+export interface CartLine { productId: string; quantity: number; unitPrice?: number; catalogUpdatedAt?: number; }
 export interface Order { id: string; lines: CartLine[]; subtotal: number; currency: string; createdAt: number; status: "pending" | "paid" | "cancelled"; }
 export interface Alert { id: string; itemId: string; type: "threshold" | "percent"; price?: number; direction?: "above" | "below"; percent?: number; window?: string; baseline?: number; createdAt: number; lastTriggered?: number; cooldownHours: number; enabled: boolean; }
 export interface Queued { id: string; itemId: string; ticker: string; detectedAt: number; note: string; }
@@ -113,5 +114,7 @@ export async function addCatalogCategory(name: string) {
     return category;
   });
 }
-export async function addToCart(ctx: Ctx, productId: string, quantity = 1) { return transaction((s) => { const product = s.catalog.find((entry) => entry.id === productId); if (!product || !Number.isInteger(quantity) || quantity < 1) return false; const lines = s.carts[userId(ctx)] ?? (s.carts[userId(ctx)] = []); const line = lines.find((entry) => entry.productId === productId); if (line) line.quantity += quantity; else lines.push({ productId, quantity }); return true; }); }
+export async function addToCart(ctx: Ctx, productId: string, quantity = 1) { return transaction((s) => { const product = s.catalog.find((entry) => entry.id === productId); if (!product || !Number.isInteger(quantity) || quantity < 1 || product.availability !== "in_stock") return false; const lines = s.carts[userId(ctx)] ?? (s.carts[userId(ctx)] = []); const line = lines.find((entry) => entry.productId === productId); if (line) { line.quantity += quantity; line.unitPrice = line.unitPrice ?? product.price; line.catalogUpdatedAt = line.catalogUpdatedAt ?? product.updatedAt; } else lines.push({ productId, quantity, unitPrice: product.price, catalogUpdatedAt: product.updatedAt }); return true; }); }
+export async function changeCartQuantity(ctx: Ctx, productId: string, delta: number) { return transaction((s) => { if (!Number.isInteger(delta) || delta === 0) return false; const lines = s.carts[userId(ctx)] ?? []; const line = lines.find((entry) => entry.productId === productId); if (!line) return false; line.quantity += delta; if (line.quantity <= 0) s.carts[userId(ctx)] = lines.filter((entry) => entry.productId !== productId); return true; }); }
+export async function removeFromCart(ctx: Ctx, productId: string) { return transaction((s) => { const lines = s.carts[userId(ctx)] ?? []; const before = lines.length; s.carts[userId(ctx)] = lines.filter((entry) => entry.productId !== productId); return s.carts[userId(ctx)].length !== before; }); }
 export async function clearCart(ctx: Ctx) { return transaction((s) => { s.carts[userId(ctx)] = []; }); }
