@@ -2,6 +2,7 @@ import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
 import { touch } from "../store.js";
 import { menuKeyboard } from "../storefront.js";
+import { backMenu } from "../menu-state.js";
 import { requireOwner } from "../toolkit/index.js";
 import { orderDetail } from "./orders.js";
 import { showMenu as showPersistentMenu } from "../menu-state.js";
@@ -23,6 +24,15 @@ composer.command("start", async (ctx) => {
 composer.command("menu", async (ctx) => showMenu(ctx, false));
 composer.callbackQuery("menu:main", async (ctx) => {
   await ctx.answerCallbackQuery();
+  await showPersistentMenu(ctx, { text: WELCOME, markup: menuKeyboard(ctx) }, { replace: true });
+});
+composer.callbackQuery("nav:back", async (ctx) => {
+  await ctx.answerCallbackQuery();
+  const active = ctx.session.activeMenu;
+  if (active?.history.length) {
+    await backMenu(ctx, { text: WELCOME, markup: menuKeyboard(ctx) });
+    return;
+  }
   await showPersistentMenu(ctx, { text: WELCOME, markup: menuKeyboard(ctx) }, { replace: true });
 });
 export default composer;

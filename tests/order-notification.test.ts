@@ -54,10 +54,11 @@ describe("order confirmation notification", () => {
     expect(notification?.payload.text).toContain("Способ получения: 🚚 Доставка по адресу");
 
     const markup = notification?.payload.reply_markup as { inline_keyboard?: Array<Array<Record<string, string>>> };
-    expect(markup.inline_keyboard).toHaveLength(2);
+    expect(markup.inline_keyboard).toHaveLength(3);
     expect(markup.inline_keyboard?.[0]).toHaveLength(1);
     expect(markup.inline_keyboard?.[0]?.[0]?.text).toBe("📦 Открыть заказ");
     expect(markup.inline_keyboard?.[0]?.[0]?.url).toMatch(/^https:\/\/t\.me\/test_bot\?start=admin_order_ORD-/);
     expect(markup.inline_keyboard?.[1]?.[0]).toEqual({ text: "Главное меню", callback_data: "menu:main" });
+    expect(markup.inline_keyboard?.[2]?.[0]).toEqual({ text: "Назад", callback_data: "nav:back" });
   });
 });
