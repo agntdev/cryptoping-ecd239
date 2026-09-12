@@ -1,31 +1,14 @@
 import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
 import { inlineButton, inlineKeyboard, registerMainMenuItem } from "../toolkit/index.js";
-import { addTicker, data, itemKeyboard, symbol } from "../crypto.js";
-
-registerMainMenuItem({ label: "Add coin", data: "watchlist:add_coin", order: 10 });
+import { catalogMarkup, catalogText, productText, productButtons } from "../storefront.js";
+import { findProduct, snapshot } from "../store.js";
+registerMainMenuItem({ label: "Каталог", data: "catalog:open", order: 10 });
 const composer = new Composer<Ctx>();
-
-composer.callbackQuery("watchlist:add_coin", async (ctx) => {
-  await ctx.answerCallbackQuery(); ctx.session.flow = { kind: "ticker" };
-  await ctx.reply("Choose a coin, or tap Other ticker and send its symbol.", { reply_markup: inlineKeyboard([
-    [inlineButton("Bitcoin BTC", "watchlist:seed:BTC"), inlineButton("Ethereum ETH", "watchlist:seed:ETH")],
-    [inlineButton("Toncoin TON", "watchlist:seed:TON"), inlineButton("Other ticker", "watchlist:other")],
-    [inlineButton("Back to menu", "menu:main")],
-  ]) });
-});
-composer.callbackQuery("watchlist:other", async (ctx) => { await ctx.answerCallbackQuery(); ctx.session.flow = { kind: "ticker" }; await ctx.reply("Send the ticker symbol, for example SOL.", { reply_markup: { force_reply: true, input_field_placeholder: "Ticker symbol" } }); });
-composer.callbackQuery(/^watchlist:seed:(BTC|ETH|TON)$/, async (ctx) => {
-  await ctx.answerCallbackQuery(); const ticker = ctx.match[1];
-  try { const added = await addTicker(ctx, ticker); if (!added) { await ctx.reply("That coin could not be verified right now. Try again shortly."); return; }
-    await ctx.reply(`${added.name} (${ticker}) is on your watchlist. Choose an alert or check its price.`, { reply_markup: itemKeyboard(ticker) });
-  } catch { data(ctx).errors++; await ctx.reply("Prices are unavailable right now. Try again shortly."); }
-});
-composer.on("message:text", async (ctx, next) => {
-  if (ctx.session.flow?.kind !== "ticker") return next();
-  const ticker = symbol(ctx.message.text); if (!ticker) { await ctx.reply("Send a ticker using letters and numbers, for example SOL."); return; }
-  try { const added = await addTicker(ctx, ticker); if (!added) { await ctx.reply("I couldn't verify that ticker. Check the spelling and try BTC, ETH, TON, SOL, ADA, DOGE, or XRP."); return; }
-    ctx.session.flow = undefined; await ctx.reply(`${added.name} (${ticker}) is on your watchlist. Choose an alert or check its price.`, { reply_markup: itemKeyboard(ticker) });
-  } catch { data(ctx).errors++; await ctx.reply("Prices are unavailable right now. Try again shortly."); }
-});
+async function show(ctx: Ctx, page = 0, edit = false) { const { products, pages } = await catalogText(page); const text = products.length ? `Каталог · страница ${page + 1}/${pages}` : "Каталог пока пуст. Загляните позже."; const opts = { reply_markup: catalogMarkup(products, page, pages) }; if (edit) await ctx.editMessageText(text, opts); else await ctx.reply(text, opts); }
+composer.callbackQuery("catalog:open", async (ctx) => { await ctx.answerCallbackQuery(); await show(ctx); });
+composer.command("catalog", async (ctx) => show(ctx));
+composer.callbackQuery(/^catalog:page:(\d+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await show(ctx, Number(ctx.match[1]), true); });
+composer.callbackQuery(/^product:view:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); const p = findProduct(await snapshot(), ctx.match[1]); if (!p) { await ctx.reply("Товар не найден. Откройте каталог ещё раз."); return; } if (p.photo) await ctx.replyWithPhoto(p.photo, { caption: productText(p), reply_markup: productButtons(p) }); else await ctx.editMessageText(productText(p), { reply_markup: productButtons(p) }); });
+composer.callbackQuery("catalog:categories", async (ctx) => { await ctx.answerCallbackQuery(); const s = await snapshot(); const categories = [...new Set(s.products.map((p) => p.category).filter(Boolean))] as string[]; await ctx.reply(categories.length ? "Категории:\n" + categories.join("\n") : "Категорий пока нет.", { reply_markup: inlineKeyboard([[inlineButton("Каталог", "catalog:open")]]) }); });
 export default composer;

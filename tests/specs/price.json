@@ -1,1 +1,1 @@
-[{"name":"/price explains an empty list","steps":[{"send":{"text":"/price"},"expect":[{"method":"sendMessage","payload":{"text":"Your watchlist is empty — tap Add coin to start."}}]}]}]
+[{"name":"Пустая история заказов","steps":[{"send":{"text":"/orders"},"expect":[{"method":"sendMessage","payload":{"text":"Заказов пока нет. Откройте каталог, чтобы выбрать товары."}}]}]}]

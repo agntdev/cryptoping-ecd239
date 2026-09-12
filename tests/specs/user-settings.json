@@ -1,1 +1,1 @@
-[{"name":"Settings opens defaults","steps":[{"send":{"callback":"user:settings"},"expect":[{"method":"sendMessage","payload":{"text":"Settings\nTimezone: UTC\nFiat: USD\nQuiet hours: off\nMorning summary: off\nAlert cooldown: 6 hours"}}]}]}]
+[{"name":"Профиль пуст","steps":[{"send":{"callback":"profile:open"},"expect":[{"method":"sendMessage","payload":{"text":"Профиль пока не заполнен."}}]}]}]
