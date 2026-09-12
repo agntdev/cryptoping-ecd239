@@ -1,11 +1,13 @@
 import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
-import { inlineButton, inlineKeyboard, registerMainMenuItem } from "../toolkit/index.js";
-import { data, showPrice, symbol } from "../crypto.js";
+import { registerMainMenuItem, inlineButton, inlineKeyboard, isOwner } from "../toolkit/index.js";
+import { getUser, snapshot } from "../store.js";
+import { ordersText } from "../storefront.js";
+registerMainMenuItem({ label: "Заказы", data: "orders:mine", order: 30 });
 const composer = new Composer<Ctx>();
-registerMainMenuItem({ label: "Check prices", data: "price:list", order: 30 });
-async function one(ctx: Ctx, ticker: string) { try { const text = await showPrice(ctx, ticker); if (!text) { await ctx.reply("I couldn't find that ticker. Check the spelling and try again."); return; } await ctx.reply(text); } catch { data(ctx).errors++; await ctx.reply("Prices are unavailable right now. Try again shortly."); } }
-composer.command("price", async (ctx) => { const arg = ctx.match?.trim(); if (arg) { const t = symbol(arg); if (!t) { await ctx.reply("Send a ticker after /price, for example /price BTC."); return; } await one(ctx, t); return; } const items = data(ctx).items; if (!items.length) { await ctx.reply("Your watchlist is empty — tap Add coin to start."); return; } for (const x of items) await one(ctx, x.ticker); });
-composer.callbackQuery("price:list", async (ctx) => { await ctx.answerCallbackQuery(); const items = data(ctx).items; if (!items.length) { await ctx.reply("Your watchlist is empty — tap Add coin to start."); return; } await ctx.reply("Choose a coin to check.", { reply_markup: inlineKeyboard(items.map((x) => [inlineButton(x.ticker, `price:one:${x.ticker}`)])) }); });
-composer.callbackQuery(/^price:one:([A-Z0-9]+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await one(ctx, ctx.match[1]); });
+async function show(ctx: Ctx) { const s = await snapshot(); const u = await getUser(ctx); await ctx.reply(ordersText(s, u.orderIds), { reply_markup: inlineKeyboard([[inlineButton("Каталог", "catalog:open"), inlineButton("Главное меню", "menu:main")]]) }); }
+composer.command("orders", async (ctx) => { if (isOwner(ctx as unknown as Parameters<typeof isOwner>[0])) { const s = await snapshot(); await ctx.reply(s.orders.length ? `Заказы\n\n${s.orders.slice(-20).reverse().map((o) => `${o.id} · ${o.status} · ${o.total} ${o.currency}`).join("\n")}` : "Заказов пока нет."); } else await show(ctx); });
+composer.callbackQuery("orders:mine", async (ctx) => { await ctx.answerCallbackQuery(); await show(ctx); });
+composer.callbackQuery(/^orders:view:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); const s = await snapshot(); const o = s.orders.find((x) => x.id === ctx.match[1] && x.userId === String(ctx.from?.id ?? ctx.chat?.id)); if (!o) { await ctx.reply("Заказ не найден."); return; } await ctx.reply(`${o.id}\n${o.items.map((x) => `${x.title} × ${x.quantity}`).join("\n")}\nИтого: ${o.total} ${o.currency}\nСтатус: ${o.status}`, { reply_markup: inlineKeyboard([[inlineButton("Связаться с владельцем", "owner:contact")]]) }); });
+composer.callbackQuery("owner:contact", async (ctx) => { await ctx.answerCallbackQuery(); await ctx.reply("Напишите владельцу через Telegram, указанный в описании магазина."); });
 export default composer;
