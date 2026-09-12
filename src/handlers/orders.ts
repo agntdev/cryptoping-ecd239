@@ -59,6 +59,7 @@ async function orderDetail(ctx: Ctx, orderId: string) {
     `Телефон: ${order.customer.phone}`,
     `Город: ${order.customer.city}`,
     `Адрес: ${order.customer.address}`,
+    `Способ оплаты: ${order.payment_method?.label ?? "Не выбран"}`,
     "",
     "Товары:",
     ...lines,

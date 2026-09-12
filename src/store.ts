@@ -11,7 +11,7 @@ export type Flow =
   | { kind: "catalog" }
   | { kind: "category"; categoryId: string }
   | { kind: "cart"; returnProductId?: string; returnCategoryId?: string }
-  | { kind: "checkout"; step: "name" | "phone" | "city" | "address" | "summary"; editing?: boolean }
+  | { kind: "checkout"; step: "name" | "phone" | "city" | "address" | "payment" | "summary"; editing?: boolean }
   | { kind: "category-create"; retried?: boolean }
   | { kind: "product-create"; categoryId: string; step: "name" | "photo" | "description" | "price" | "availability"; name?: string; photo?: string; description?: string; price?: number; availability?: "in_stock" | "out_of_stock"; stockCount?: number }
   | { kind: "product-edit"; productId: string; categoryId: string; step: "name" | "photo" | "description" | "price" | "availability" | "field"; field?: "name" | "photo" | "description" | "price" | "availability" | "category"; name?: string; photo?: string; description?: string; price?: number; availability?: "in_stock" | "out_of_stock"; stockCount?: number }
@@ -24,6 +24,12 @@ export interface CatalogCategory { id: string; name: string; }
 export interface CartLine { productId: string; quantity: number; unitPrice?: number; catalogUpdatedAt?: number; }
 export interface OrderLine { productId: string; name: string; unitPrice: number; quantity: number; subtotal: number; }
 export interface CustomerData { name: string; phone: string; city: string; address: string; }
+export const PAYMENT_METHODS = {
+  card: "💳 Оплата картой",
+  cash_on_delivery: "💵 Наличными при получении",
+} as const;
+export type PaymentMethodValue = keyof typeof PAYMENT_METHODS;
+export interface PaymentMethod { value: PaymentMethodValue; label: (typeof PAYMENT_METHODS)[PaymentMethodValue]; }
 export const ORDER_STATUSES = ["🆕 Новый", "🔄 В обработке", "📦 Собирается", "🚚 Отправлен", "✅ Выполнен", "❌ Отменён"] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 /** Plain status names used in buyer notifications. Keep card labels unchanged. */
@@ -35,14 +41,14 @@ export const ORDER_STATUS_NAMES: Record<OrderStatus, string> = {
   "✅ Выполнен": "Выполнен",
   "❌ Отменён": "Отменён",
 };
-export interface Order { id: string; userId: string; createdAt: number; lines: OrderLine[]; totalAmount: number; currency: string; customer: CustomerData; status: OrderStatus; }
+export interface Order { id: string; userId: string; createdAt: number; lines: OrderLine[]; totalAmount: number; currency: string; customer: CustomerData; payment_method: PaymentMethod; status: OrderStatus; }
 function normalizeOrderStatus(status: unknown): OrderStatus {
   if (ORDER_STATUSES.includes(status as OrderStatus)) return status as OrderStatus;
   if (status === "paid") return "✅ Выполнен";
   if (status === "cancelled") return "❌ Отменён";
   return "🆕 Новый";
 }
-export interface CheckoutDraft { name?: string; phone?: string; city?: string; address?: string; updatedAt: number; }
+export interface CheckoutDraft { name?: string; phone?: string; city?: string; address?: string; payment_method?: PaymentMethod; updatedAt: number; }
 export interface Alert { id: string; itemId: string; type: "threshold" | "percent"; price?: number; direction?: "above" | "below"; percent?: number; window?: string; baseline?: number; createdAt: number; lastTriggered?: number; cooldownHours: number; enabled: boolean; }
 export interface Queued { id: string; itemId: string; ticker: string; detectedAt: number; note: string; }
 export interface State { version: 1; users: Record<string, Profile>; items: Record<string, Item[]>; alerts: Record<string, Alert[]>; queued: Record<string, Queued[]>; catalog: CatalogProduct[]; categories: CatalogCategory[]; carts: Record<string, CartLine[]>; orders: Record<string, Order[]>; checkoutDrafts: Record<string, CheckoutDraft>; metrics: { triggers: Record<string, number>; errors: number }; config: { cooldown: number; hysteresis: number; percentWindow: string; topN: number }; }
@@ -164,7 +170,7 @@ export async function clearCheckoutDraft(ctx: Ctx) {
   return transaction((s) => { delete s.checkoutDrafts[userId(ctx)]; });
 }
 
-export async function createOrderFromCheckout(ctx: Ctx, customer: CustomerData) {
+export async function createOrderFromCheckout(ctx: Ctx, customer: CustomerData, payment_method: PaymentMethod) {
   return transaction((s) => {
     const uid = userId(ctx);
     const cart = s.carts[uid] ?? [];
@@ -184,7 +190,7 @@ export async function createOrderFromCheckout(ctx: Ctx, customer: CustomerData) 
     let suffix = 2;
     const allOrders = Object.values(s.orders).flat();
     while (allOrders.some((order) => order.id === id)) id = `ORD-${stamp}-${suffix++}`;
-    const order: Order = { id, userId: uid, createdAt, lines, totalAmount: lines.reduce((sum, line) => sum + line.subtotal, 0), currency: products.get(lines[0].productId)!.currency, customer, status: "🆕 Новый" };
+    const order: Order = { id, userId: uid, createdAt, lines, totalAmount: lines.reduce((sum, line) => sum + line.subtotal, 0), currency: products.get(lines[0].productId)!.currency, customer, payment_method, status: "🆕 Новый" };
     existing.push(order);
     s.carts[uid] = [];
     delete s.checkoutDrafts[uid];

@@ -9,6 +9,8 @@ import {
   clearCheckoutDraft,
   snapshot,
   userId,
+  PAYMENT_METHODS,
+  type PaymentMethod,
 } from "../store.js";
 import { inlineButton, inlineKeyboard } from "../toolkit/index.js";
 
@@ -43,6 +45,15 @@ async function promptFor(ctx: Ctx, step: "name" | "phone" | "city" | "address", 
   await ctx.reply(prompt.text, { reply_markup: inlineKeyboard([[inlineButton("❌ Отменить", "checkout:cancel")]]) });
 }
 
+async function paymentPrompt(ctx: Ctx) {
+  ctx.session.flow = { kind: "checkout", step: "payment" };
+  await ctx.reply("Выберите способ оплаты.", { reply_markup: inlineKeyboard([
+    [inlineButton(PAYMENT_METHODS.card, "checkout:payment:card")],
+    [inlineButton(PAYMENT_METHODS.cash_on_delivery, "checkout:payment:cash_on_delivery")],
+    [inlineButton("❌ Отменить", "checkout:cancel")],
+  ]) });
+}
+
 async function summary(ctx: Ctx) {
   const draft = await getCheckoutDraft(ctx);
   const state = await snapshot();
@@ -70,6 +81,7 @@ async function summary(ctx: Ctx) {
     `Телефон: ${draft?.phone ?? "—"}`,
     `Город: ${draft?.city ?? "—"}`,
     `Адрес: ${draft?.address ?? "—"}`,
+    `Способ оплаты: ${draft?.payment_method?.label ?? "—"}`,
   ].join("\n");
   ctx.session.flow = { kind: "checkout", step: "summary" };
   await ctx.reply(text, { reply_markup: inlineKeyboard([
@@ -82,7 +94,8 @@ async function summary(ctx: Ctx) {
 async function begin(ctx: Ctx) {
   if (!(await cartExists(ctx))) return ctx.reply(emptyCartText);
   const draft = await getCheckoutDraft(ctx);
-  if (draft?.name && draft.phone && draft.city && draft.address) return summary(ctx);
+  if (draft?.name && draft.phone && draft.city && draft.address && draft.payment_method) return summary(ctx);
+  if (draft?.name && draft.phone && draft.city && draft.address) return paymentPrompt(ctx);
   if (!draft?.name) return promptFor(ctx, "name");
   if (!draft.phone) return promptFor(ctx, "phone");
   if (!draft.city) return promptFor(ctx, "city");
@@ -96,6 +109,7 @@ composer.callbackQuery("checkout:edit", async (ctx) => {
   await ctx.reply("Выберите данные для изменения.", { reply_markup: inlineKeyboard([
     [inlineButton("Имя", "checkout:edit:name"), inlineButton("Телефон", "checkout:edit:phone")],
     [inlineButton("Город", "checkout:edit:city"), inlineButton("Адрес", "checkout:edit:address")],
+    [inlineButton("Способ оплаты", "checkout:edit:payment")],
     [inlineButton("❌ Отменить", "checkout:cancel")],
   ]) });
 });
@@ -103,6 +117,24 @@ composer.callbackQuery("checkout:edit", async (ctx) => {
 composer.callbackQuery(/^checkout:edit:(name|phone|city|address)$/, async (ctx) => {
   await ctx.answerCallbackQuery();
   await promptFor(ctx, ctx.match[1] as "name" | "phone" | "city" | "address", true);
+});
+
+composer.callbackQuery("checkout:edit:payment", async (ctx) => {
+  await ctx.answerCallbackQuery();
+  await paymentPrompt(ctx);
+});
+
+composer.callbackQuery(/^checkout:payment:(card|cash_on_delivery)$/, async (ctx) => {
+  await ctx.answerCallbackQuery();
+  const flow = ctx.session.flow;
+  const draft = await getCheckoutDraft(ctx);
+  if (!draft?.name || !draft.phone || !draft.city || !draft.address || !flow || flow.kind !== "checkout" || flow.step !== "payment") {
+    return begin(ctx);
+  }
+  const value = ctx.match[1] as "card" | "cash_on_delivery";
+  const payment_method: PaymentMethod = { value, label: PAYMENT_METHODS[value] };
+  await saveCheckoutDraft(ctx, { payment_method });
+  await summary(ctx);
 });
 
 composer.callbackQuery("checkout:cancel", async (ctx) => {
@@ -116,12 +148,12 @@ composer.callbackQuery("checkout:cancel", async (ctx) => {
 composer.callbackQuery("checkout:confirm", async (ctx) => {
   await ctx.answerCallbackQuery();
   const draft = await getCheckoutDraft(ctx);
-  if (!draft?.name || !draft.phone || !draft.city || !draft.address) return begin(ctx);
-  const order = await createOrderFromCheckout(ctx, { name: draft.name, phone: draft.phone, city: draft.city, address: draft.address });
+  if (!draft?.name || !draft.phone || !draft.city || !draft.address || !draft.payment_method) return begin(ctx);
+  const order = await createOrderFromCheckout(ctx, { name: draft.name, phone: draft.phone, city: draft.city, address: draft.address }, draft.payment_method);
   if (!order) return ctx.reply("Не удалось оформить заказ: один из товаров больше недоступен. Проверьте корзину.");
   ctx.session.flow = { kind: "cart" };
   const items = order.lines.map((line) => `${line.name} × ${line.quantity} — ${formatPrice(line.subtotal, order.currency)}`).join("\n");
-  await ctx.reply(`Заказ ${order.id} создан.\n\n${items}\nСтоимость товаров: ${formatPrice(order.totalAmount, order.currency)}\nИтого: ${formatPrice(order.totalAmount, order.currency)}\n\nДоставка: ${order.customer.name}, ${order.customer.phone}, ${order.customer.city}, ${order.customer.address}`);
+  await ctx.reply(`Заказ ${order.id} создан.\n\n${items}\nСтоимость товаров: ${formatPrice(order.totalAmount, order.currency)}\nИтого: ${formatPrice(order.totalAmount, order.currency)}\n\nДоставка: ${order.customer.name}, ${order.customer.phone}, ${order.customer.city}, ${order.customer.address}\nСпособ оплаты: ${order.payment_method.label}`);
 });
 
 composer.on("message:text", async (ctx, next) => {
@@ -136,12 +168,16 @@ composer.on("message:text", async (ctx, next) => {
     await ctx.reply("Введите номер телефона цифрами и распространёнными символами.", { reply_markup: inlineKeyboard([[inlineButton("❌ Отменить", "checkout:cancel")]]) });
     return;
   }
+  if (flow.step === "payment") {
+    await paymentPrompt(ctx);
+    return;
+  }
   await saveCheckoutDraft(ctx, { [flow.step]: value });
   if (flow.editing) return summary(ctx);
   if (flow.step === "name") return promptFor(ctx, "phone");
   if (flow.step === "phone") return promptFor(ctx, "city");
   if (flow.step === "city") return promptFor(ctx, "address");
-  return summary(ctx);
+  return paymentPrompt(ctx);
 });
 
 export default composer;
