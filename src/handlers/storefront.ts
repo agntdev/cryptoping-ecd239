@@ -1,7 +1,7 @@
 import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
 import { inlineButton, inlineKeyboard } from "../toolkit/index.js";
-import { addToCart, changeCartQuantity, clearCart, getCatalogCategory, getCatalogProduct, getProfile, listCatalogCategories, listCatalogProducts, removeFromCart, snapshot, updateProfile, userId } from "../store.js";
+import { addToCart, changeCartQuantity, clearCart, getCatalogCategory, getCatalogProduct, getProfile, getUserOrder, listCatalogCategories, listCatalogProducts, listUserOrders, removeFromCart, snapshot, updateProfile, userId } from "../store.js";
 import { formatPrice } from "../locale.js";
 import { force, menuKeyboard } from "../storefront.js";
 
@@ -97,16 +97,33 @@ export async function cart(ctx: Ctx) {
 
 async function profile(ctx: Ctx) {
   const p = await getProfile(ctx);
-  await ctx.reply("Ваш профиль\nИмя: " + (p.name ?? "не указано") + "\nEmail: " + (p.email ?? "не указан") + "\nАдрес доставки: " + (p.address ?? "не указан") + "\nТелефон: " + (p.phone ?? "не указан") + "\nЧасовой пояс: " + p.timezone + "\nТихие часы: " + (p.quietStart && p.quietEnd ? p.quietStart + "–" + p.quietEnd : "выкл."), {
-    reply_markup: inlineKeyboard([[inlineButton("Имя", "profile:field:name"), inlineButton("Email", "profile:field:email")], [inlineButton("Адрес доставки", "profile:field:address"), inlineButton("Телефон", "profile:field:phone")], [inlineButton("Save", "profile:save"), inlineButton("В главное меню", "shop:home")]]),
+  const draft = ctx.session.flow?.kind === "profile" ? ctx.session.flow.draft : {};
+  const value = (field: "name" | "phone" | "city" | "address") => draft[field] ?? p[field] ?? "не указано";
+  await ctx.reply("Профиль\n\nимя: " + value("name") + "\nтелефон: " + value("phone") + "\nгород: " + value("city") + "\nадрес: " + value("address"), {
+    reply_markup: inlineKeyboard([
+      [inlineButton("Имя", "profile:field:name"), inlineButton("Телефон", "profile:field:phone")],
+      [inlineButton("Город", "profile:field:city"), inlineButton("Адрес", "profile:field:address")],
+      [inlineButton("Сохранить", "profile:save"), inlineButton("📦 Мои заказы", "shop:orders")],
+      [inlineButton("В главное меню", "shop:home")],
+    ]),
   });
 }
 
 async function orders(ctx: Ctx) {
-  const state = await snapshot();
-  const list = state.orders[userId(ctx)] ?? [];
-  if (!list.length) { await ctx.reply("У вас нет заказов", homeMarkup()); return; }
-  await ctx.reply("Ваши заказы\n" + list.map((order) => "Заказ " + order.id + " — " + formatPrice(order.totalAmount, order.currency) + " — " + order.status + " — " + (order.delivery_method?.label ?? "🚚 Доставка по адресу")).join("\n"), homeMarkup());
+  const list = await listUserOrders(ctx);
+  if (!list.length) { await ctx.reply("У вас пока нет заказов.", { reply_markup: inlineKeyboard([[inlineButton("В профиль", "shop:profile")], [inlineButton("В главное меню", "shop:home")]]) }); return; }
+  const rows = list.map((order) => [inlineButton("Заказ " + order.id + " · " + formatPrice(order.totalAmount, order.currency), "profile:order:" + order.id)]);
+  rows.push([inlineButton("В профиль", "shop:profile")], [inlineButton("В главное меню", "shop:home")]);
+  await ctx.reply("📦 Мои заказы", { reply_markup: inlineKeyboard(rows) });
+}
+
+async function orderDetail(ctx: Ctx, orderId: string) {
+  const order = await getUserOrder(ctx, orderId);
+  if (!order) { await ctx.reply("Этот заказ недоступен.", { reply_markup: inlineKeyboard([[inlineButton("📦 Мои заказы", "shop:orders")]]) }); return; }
+  const lines = order.lines.map((line) => `${line.name} × ${line.quantity} — ${formatPrice(line.subtotal, order.currency)}`).join("\n");
+  await ctx.reply("Заказ " + order.id + "\nСтатус: " + order.status + "\n\nТовары:\n" + lines + "\n\nИтого: " + formatPrice(order.totalAmount, order.currency) + "\nСпособ получения: " + order.delivery_method.label + "\nСпособ оплаты: " + order.payment_method.label, {
+    reply_markup: inlineKeyboard([[inlineButton("📦 Мои заказы", "shop:orders")], [inlineButton("В профиль", "shop:profile")]]),
+  });
 }
 
 async function help(ctx: Ctx) {
@@ -131,12 +148,11 @@ composer.on("message:text", async (ctx, next) => {
   if (text === "👤 Профиль") return profile(ctx);
   if (text === "ℹ️ Помощь") return help(ctx);
   const profileFlow = ctx.session.flow;
-  if (!profileFlow || profileFlow.kind !== "profile") return next();
+  if (!profileFlow || profileFlow.kind !== "profile" || !profileFlow.field) return next();
   const value = text.trim();
   if (!value) { await ctx.reply("Введите значение, чтобы сохранить поле.", { reply_markup: force("Введите значение") }); return; }
-  await updateProfile(ctx, { [profileFlow.field]: value });
-  ctx.session.flow = undefined;
-  await ctx.reply("Поле сохранено.", { reply_markup: menuKeyboard() });
+  ctx.session.flow = { kind: "profile", field: undefined, draft: { ...profileFlow.draft, [profileFlow.field]: value } };
+  await ctx.reply("Изменения готовы. Нажмите «Сохранить».", { reply_markup: inlineKeyboard([[inlineButton("Сохранить", "profile:save")], [inlineButton("👤 Профиль", "shop:profile")]]) });
 });
 
 composer.callbackQuery("shop:catalog", async (ctx) => { await ctx.answerCallbackQuery(); await catalog(ctx); });
@@ -144,6 +160,7 @@ composer.callbackQuery("shop:cart", async (ctx) => { await ctx.answerCallbackQue
 composer.callbackQuery(/^shop:cart:from:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); const product = await getCatalogProduct(ctx.match[1]); ctx.session.flow = { kind: "cart", returnProductId: product?.id, returnCategoryId: product?.categoryId }; await cart(ctx); });
 composer.callbackQuery("shop:orders", async (ctx) => { await ctx.answerCallbackQuery(); await orders(ctx); });
 composer.callbackQuery("shop:profile", async (ctx) => { await ctx.answerCallbackQuery(); await profile(ctx); });
+composer.callbackQuery(/^profile:order:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await orderDetail(ctx, ctx.match[1]); });
 composer.callbackQuery("shop:help", async (ctx) => { await ctx.answerCallbackQuery(); await help(ctx); });
 composer.callbackQuery("shop:home", async (ctx) => { await ctx.answerCallbackQuery(); await ctx.reply("Выберите раздел в меню ниже.", homeMarkup()); });
 composer.callbackQuery(/^shop:add:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); const added = await addToCart(ctx, ctx.match[1]); await ctx.reply(added ? "Товар добавлен в корзину." : "Этот товар больше недоступен. Откройте каталог ещё раз.", homeMarkup()); });
@@ -155,7 +172,23 @@ composer.callbackQuery(/^catalog:product:view:(.+)$/, async (ctx) => { await ctx
 composer.callbackQuery(/^catalog:back:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await catalog(ctx); });
 composer.callbackQuery(/^catalog:category:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await category(ctx, ctx.match[1]); });
 composer.callbackQuery(/^catalog:products:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await productList(ctx, ctx.match[1]); });
-composer.callbackQuery(/^profile:field:(name|email|address|phone)$/, async (ctx) => { await ctx.answerCallbackQuery(); ctx.session.flow = { kind: "profile", field: ctx.match[1] as "name" | "email" | "address" | "phone" }; await ctx.reply("Введите значение поля.", { reply_markup: force("Введите значение") }); });
-composer.callbackQuery("profile:save", async (ctx) => { await ctx.answerCallbackQuery(); await ctx.reply("Профиль сохранён.", homeMarkup()); });
+composer.callbackQuery(/^profile:field:(name|phone|city|address)$/, async (ctx) => {
+  await ctx.answerCallbackQuery();
+  const p = await getProfile(ctx);
+  const field = ctx.match[1] as "name" | "phone" | "city" | "address";
+  const previous = ctx.session.flow?.kind === "profile" ? ctx.session.flow.draft : {};
+  ctx.session.flow = { kind: "profile", field, draft: { name: previous.name ?? p.name, phone: previous.phone ?? p.phone, city: previous.city ?? p.city, address: previous.address ?? p.address } };
+  await ctx.reply("Введите новое значение для поля «" + field + "».", { reply_markup: force("Введите значение") });
+});
+composer.callbackQuery("profile:save", async (ctx) => {
+  await ctx.answerCallbackQuery();
+  const flow = ctx.session.flow;
+  const draft = flow?.kind === "profile" ? flow.draft : {};
+  if (!draft.name?.trim()) return ctx.reply("Укажите имя перед сохранением профиля.");
+  if (draft.phone && !/^\+?[0-9 ()-]{7,20}$/.test(draft.phone) || (draft.phone && draft.phone.replace(/\D/g, "").length < 7)) return ctx.reply("Укажите телефон в понятном формате, например +7 900 123-45-67.");
+  await updateProfile(ctx, { name: draft.name.trim(), phone: draft.phone?.trim(), city: draft.city?.trim(), address: draft.address?.trim() });
+  ctx.session.flow = undefined;
+  await ctx.reply("Профиль сохранён.", { reply_markup: inlineKeyboard([[inlineButton("👤 Профиль", "shop:profile")], [inlineButton("В главное меню", "shop:home")]]) });
+});
 
 export default composer;

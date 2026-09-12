@@ -16,7 +16,8 @@
                   [{ "text": "Список наблюдения", "callback_data": "watchlist:view" }],
                   [{ "text": "Оповещения", "callback_data": "alerts:menu" }],
                   [{ "text": "Проверить цену", "callback_data": "price:menu" }],
-                  [{ "text": "Настройки", "callback_data": "user:settings" }]
+                [{ "text": "Настройки", "callback_data": "user:settings" }],
+                [{ "text": "👤 Профиль", "callback_data": "shop:profile" }]
                 ]
               }
             }

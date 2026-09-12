@@ -7,7 +7,7 @@ export type Flow =
   | { kind: "price"; itemId: string }
   | { kind: "percent"; itemId: string; percent?: number; window?: string }
   | { kind: "settings"; step: "timezone" | "quiet" | "summary" | "cooldown" }
-  | { kind: "profile"; field: "name" | "email" | "address" | "phone" }
+  | { kind: "profile"; field?: "name" | "phone" | "city" | "address"; draft: { name?: string; phone?: string; city?: string; address?: string } }
   | { kind: "catalog" }
   | { kind: "category"; categoryId: string }
   | { kind: "cart"; returnProductId?: string; returnCategoryId?: string }
@@ -17,7 +17,7 @@ export type Flow =
   | { kind: "product-edit"; productId: string; categoryId: string; step: "name" | "photo" | "description" | "price" | "availability" | "field"; field?: "name" | "photo" | "description" | "price" | "availability" | "category"; name?: string; photo?: string; description?: string; price?: number; availability?: "in_stock" | "out_of_stock"; stockCount?: number }
   | undefined;
 
-export interface Profile { id: string; timezone: string; fiat: string; quietStart?: string; quietEnd?: string; morning: boolean; summaryTime?: string; cooldown: number; hysteresis: number; lastSeen: number; name?: string; email?: string; address?: string; phone?: string; }
+export interface Profile { id: string; timezone: string; fiat: string; quietStart?: string; quietEnd?: string; morning: boolean; summaryTime?: string; cooldown: number; hysteresis: number; lastSeen: number; name?: string; phone?: string; city?: string; address?: string; email?: string; }
 export interface Item { id: string; ticker: string; name: string; addedAt: number; lastPrice?: number; }
 export interface CatalogProduct { id: string; categoryId: string; name: string; photo?: string; price: number; currency: string; description: string; availability: "in_stock" | "out_of_stock"; stockCount?: number; createdAt: number; updatedAt: number; }
 export interface CatalogCategory { id: string; name: string; }
@@ -224,6 +224,17 @@ export async function getOrder(orderId: string) {
     if (order) return order;
   }
   return undefined;
+}
+
+/** Read a buyer's order through that buyer's own persisted index. */
+export async function getUserOrder(ctx: Ctx, orderId: string) {
+  const orders = (await snapshot()).orders[userId(ctx)] ?? [];
+  return orders.find((order) => order.id === orderId);
+}
+
+/** Return only orders belonging to the authenticated customer. */
+export async function listUserOrders(ctx: Ctx) {
+  return [...((await snapshot()).orders[userId(ctx)] ?? [])].sort((a, b) => b.createdAt - a.createdAt);
 }
 
 export async function updateOrderStatus(orderId: string, status: OrderStatus) {
