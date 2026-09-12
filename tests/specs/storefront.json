@@ -1,7 +1,29 @@
 [
   {"name":"Каталог и возврат в меню","steps":[
-    {"send":{"text":"🛍 Каталог"},"expect":[{"method":"sendMessage","payload":{"text":"Выберите категорию товаров","reply_markup":{"keyboard":[[{"text":"⬅️ Назад"}]],"resize_keyboard":true,"one_time_keyboard":true}}}]},
+    {"send":{"text":"🛍 Каталог"},"expect":[{"method":"sendMessage","payload":{"text":"Выберите категорию товаров","reply_markup":{"keyboard":[[{"text":"Электроника"}],[{"text":"Одежда"}],[{"text":"Книги"}],[{"text":"Дом и сад"}],[{"text":"Добавить категорию"}],[{"text":"⬅️ Назад"}]],"resize_keyboard":true,"one_time_keyboard":true}}}]},
     {"send":{"text":"⬅️ Назад"},"expect":[{"method":"sendMessage","payload":{"text":"Добро пожаловать. Выберите раздел в меню ниже.","reply_markup":{"keyboard":[[{"text":"🛍 Каталог"},{"text":"🛒 Корзина"}],[{"text":"📦 Мои заказы"},{"text":"👤 Профиль"}],[{"text":"ℹ️ Помощь"}]],"resize_keyboard":true,"is_persistent":true}}}]}
+  ]},
+  {"name":"Категория и создание","steps":[
+    {"send":{"text":"🛍 Каталог"},"expect":[{"method":"sendMessage","payload":{"text":"Выберите категорию товаров"}}]},
+    {"send":{"text":"Электроника"},"expect":[{"method":"sendMessage","payload":{"text":"Категория: Электроника","reply_markup":{"keyboard":[[{"text":"⬅️ Назад"}]],"resize_keyboard":true,"one_time_keyboard":true}}}]},
+    {"send":{"text":"⬅️ Назад"},"expect":[{"method":"sendMessage","payload":{"text":"Выберите категорию товаров"}}]},
+    {"send":{"text":"Добавить категорию"},"expect":[{"method":"sendMessage","payload":{"text":"Введите название новой категории"}}]},
+    {"send":{"text":"Спорт"},"expect":[{"method":"sendMessage","payload":{"text":"Выберите категорию товаров","reply_markup":{"keyboard":[[{"text":"Электроника"}],[{"text":"Одежда"}],[{"text":"Книги"}],[{"text":"Дом и сад"}],[{"text":"Спорт"}],[{"text":"Добавить категорию"}],[{"text":"⬅️ Назад"}]],"resize_keyboard":true,"one_time_keyboard":true}}}]}
+  ]},
+  {"name":"Все начальные категории","steps":[
+    {"send":{"text":"🛍 Каталог"},"expect":[{"method":"sendMessage","payload":{"text":"Выберите категорию товаров"}}]},
+    {"send":{"text":"Электроника"},"expect":[{"method":"sendMessage","payload":{"text":"Категория: Электроника"}}]},
+    {"send":{"text":"⬅️ Назад"},"expect":[{"method":"sendMessage","payload":{"text":"Выберите категорию товаров"}}]},
+    {"send":{"text":"Одежда"},"expect":[{"method":"sendMessage","payload":{"text":"Категория: Одежда"}}]},
+    {"send":{"text":"⬅️ Назад"},"expect":[{"method":"sendMessage","payload":{"text":"Выберите категорию товаров"}}]},
+    {"send":{"text":"Книги"},"expect":[{"method":"sendMessage","payload":{"text":"Категория: Книги"}}]},
+    {"send":{"text":"⬅️ Назад"},"expect":[{"method":"sendMessage","payload":{"text":"Выберите категорию товаров"}}]},
+    {"send":{"text":"Дом и сад"},"expect":[{"method":"sendMessage","payload":{"text":"Категория: Дом и сад"}}]}
+  ]},
+  {"name":"Пустое имя категории","steps":[
+    {"send":{"text":"🛍 Каталог"},"expect":[{"method":"sendMessage","payload":{"text":"Выберите категорию товаров"}}]},
+    {"send":{"text":"Добавить категорию"},"expect":[{"method":"sendMessage","payload":{"text":"Введите название новой категории"}}]},
+    {"send":{"text":""},"expect":[{"method":"sendMessage","payload":{"text":"Название не может быть пустым. Введите название новой категории"}}]}
   ]},
   {"name":"Пустая корзина","steps":[{"send":{"text":"🛒 Корзина"},"expect":[{"method":"sendMessage","payload":{"text":"Корзина пуста. Откройте каталог, чтобы добавить товары."}}]}]},
   {"name":"Пустая история заказов","steps":[{"send":{"text":"📦 Мои заказы"},"expect":[{"method":"sendMessage","payload":{"text":"У вас нет заказов"}}]}]},

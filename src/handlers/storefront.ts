@@ -1,7 +1,7 @@
 import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
 import { inlineButton, inlineKeyboard } from "../toolkit/index.js";
-import { addToCart, clearCart, getProfile, snapshot, updateProfile, userId } from "../store.js";
+import { addCatalogCategory, addToCart, clearCart, getCatalogCategory, getProfile, listCatalogCategories, snapshot, updateProfile, userId } from "../store.js";
 import { formatPrice } from "../locale.js";
 import { force, menuKeyboard } from "../storefront.js";
 
@@ -10,13 +10,32 @@ const composer = new Composer<Ctx>();
 function homeMarkup() { return { reply_markup: menuKeyboard() }; }
 
 async function catalog(ctx: Ctx) {
+  ctx.session.flow = { kind: "catalog" };
+  const categories = await listCatalogCategories();
   await ctx.reply("Выберите категорию товаров", {
     reply_markup: {
-      keyboard: [[{ text: "⬅️ Назад" }]],
+      keyboard: [...categories.map((category) => [{ text: category.name }]), [{ text: "Добавить категорию" }], [{ text: "⬅️ Назад" }]],
       resize_keyboard: true,
       one_time_keyboard: true,
     },
   });
+}
+
+async function category(ctx: Ctx, categoryId: string) {
+  const selected = await getCatalogCategory(categoryId);
+  if (!selected) {
+    await catalog(ctx);
+    return;
+  }
+  ctx.session.flow = { kind: "category", categoryId: selected.id };
+  await ctx.reply("Категория: " + selected.name, {
+    reply_markup: { keyboard: [[{ text: "⬅️ Назад" }]], resize_keyboard: true, one_time_keyboard: true },
+  });
+}
+
+async function createCategory(ctx: Ctx) {
+  ctx.session.flow = { kind: "category-create" };
+  await ctx.reply("Введите название новой категории", { reply_markup: force("Название категории") });
 }
 
 async function cart(ctx: Ctx) {
@@ -65,16 +84,38 @@ async function help(ctx: Ctx) {
 composer.on("message:text", async (ctx, next) => {
   const text = ctx.message.text.trim();
   if (text === "🛍 Каталог") return catalog(ctx);
-  if (text === "⬅️ Назад") return ctx.reply("Добро пожаловать. Выберите раздел в меню ниже.", homeMarkup());
+  const flow = ctx.session.flow;
+  if (text === "⬅️ Назад") {
+    if (flow?.kind === "category") return catalog(ctx);
+    ctx.session.flow = undefined;
+    return ctx.reply("Добро пожаловать. Выберите раздел в меню ниже.", homeMarkup());
+  }
+  if (flow?.kind === "category-create") {
+    if (!text) {
+      if (flow.retried) {
+        ctx.session.flow = undefined;
+        return catalog(ctx);
+      }
+      ctx.session.flow = { kind: "category-create", retried: true };
+      return ctx.reply("Название не может быть пустым. Введите название новой категории", { reply_markup: force("Название категории") });
+    }
+    await addCatalogCategory(text);
+    return catalog(ctx);
+  }
+  if (flow?.kind === "catalog") {
+    if (text === "Добавить категорию") return createCategory(ctx);
+    const selected = (await listCatalogCategories()).find((entry) => entry.name === text);
+    if (selected) return category(ctx, selected.id);
+  }
   if (text === "🛒 Корзина") return cart(ctx);
   if (text === "📦 Мои заказы") return orders(ctx);
   if (text === "👤 Профиль") return profile(ctx);
   if (text === "ℹ️ Помощь") return help(ctx);
-  const flow = ctx.session.flow;
-  if (!flow || flow.kind !== "profile") return next();
+  const profileFlow = ctx.session.flow;
+  if (!profileFlow || profileFlow.kind !== "profile") return next();
   const value = text.trim();
   if (!value) { await ctx.reply("Введите значение, чтобы сохранить поле.", { reply_markup: force("Введите значение") }); return; }
-  await updateProfile(ctx, { [flow.field]: value });
+  await updateProfile(ctx, { [profileFlow.field]: value });
   ctx.session.flow = undefined;
   await ctx.reply("Поле сохранено.", { reply_markup: menuKeyboard() });
 });
