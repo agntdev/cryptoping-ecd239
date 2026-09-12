@@ -50,9 +50,13 @@ async function productList(ctx: Ctx, categoryId: string) {
 async function productDetail(ctx: Ctx, productId: string) {
   const product = await getCatalogProduct(productId);
   if (!product) return ctx.reply("Товар больше недоступен.");
-  const caption = product.name + "\n\n" + product.description + "\n\nЦена: " + productPrice(product) + "\nСтатус: " + (product.availability === "in_stock" ? "В наличии" : "Нет в наличии");
-  if (product.photo) await ctx.replyWithPhoto(product.photo, { caption, reply_markup: inlineKeyboard([[inlineButton("⬅️ Назад", "catalog:products:" + product.categoryId)]]) });
-  else await ctx.reply(caption, { reply_markup: inlineKeyboard([[inlineButton("⬅️ Назад", "catalog:products:" + product.categoryId)]]) });
+  const caption = (product.photo ? "" : "Фото: нет\n\n") + product.name + "\n\n" + product.description + "\n\nЦена: " + productPrice(product) + "\nСтатус: " + (product.availability === "in_stock" ? "В наличии" : "Нет в наличии");
+  const controls = inlineKeyboard([
+    [inlineButton("🛒 Добавить в корзину", "catalog:cart:later")],
+    [inlineButton("⬅️ Назад", "catalog:products:" + product.categoryId)],
+  ]);
+  if (product.photo) await ctx.replyWithPhoto(product.photo, { caption, reply_markup: controls });
+  else await ctx.reply(caption, { reply_markup: controls });
 }
 
 async function cart(ctx: Ctx) {
@@ -134,6 +138,7 @@ composer.callbackQuery(/^shop:add:(.+)$/, async (ctx) => { await ctx.answerCallb
 composer.callbackQuery("shop:clear", async (ctx) => { await ctx.answerCallbackQuery(); await clearCart(ctx); await ctx.reply("Корзина очищена.", homeMarkup()); });
 composer.callbackQuery("shop:checkout", async (ctx) => { await ctx.answerCallbackQuery(); await ctx.reply("Оформление заказа пока недоступно. Владелец ещё не подключил оплату.", homeMarkup()); });
 composer.callbackQuery(/^catalog:product:view:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await productDetail(ctx, ctx.match[1]); });
+composer.callbackQuery("catalog:cart:later", async (ctx) => { await ctx.answerCallbackQuery(); await ctx.reply("Корзина будет доступна позже"); });
 composer.callbackQuery(/^catalog:back:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await catalog(ctx); });
 composer.callbackQuery(/^catalog:category:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await category(ctx, ctx.match[1]); });
 composer.callbackQuery(/^catalog:products:(.+)$/, async (ctx) => { await ctx.answerCallbackQuery(); await productList(ctx, ctx.match[1]); });
